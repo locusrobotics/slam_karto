@@ -20,7 +20,8 @@
 
 #include "ros/console.h"
 
-SpaSolver::SpaSolver()
+SpaSolver::SpaSolver() :
+  m_SpaMethod(SBA_SPARSE_CHOLESKY)
 {
 
 }
@@ -47,7 +48,7 @@ void SpaSolver::Compute()
   typedef std::vector<sba::Node2d, Eigen::aligned_allocator<sba::Node2d> > NodeVector;
 
   ROS_INFO("Calling doSPA for loop closure");
-  m_Spa.doSPA(40);
+  m_Spa.doSPA(40, 1.0e-4, m_SpaMethod);
   ROS_INFO("Finished doSPA for loop closure");
   NodeVector nodes = m_Spa.getNodes();
   forEach(NodeVector, &nodes)
@@ -83,4 +84,9 @@ void SpaSolver::AddConstraint(karto::Edge<karto::LocalizedRangeScan>* pEdge)
   m(2,2) = precisionMatrix(2,2);
 
   m_Spa.addConstraint(pSource->GetUniqueId(), pTarget->GetUniqueId(), mean, m);
+}
+
+void SpaSolver::SetSpaMethod(const int method)
+{
+  m_SpaMethod = method;
 }

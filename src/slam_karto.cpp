@@ -281,6 +281,25 @@ SlamKarto::SlamKarto() :
 
   // Set solver to be used in loop closure
   solver_ = new SpaSolver();
+
+  std::string spa_method_string;
+  int spa_method = SBA_SPARSE_CHOLESKY;
+
+  if(private_nh_.getParam("spa_method", spa_method_string))
+  {
+    if(spa_method_string == "dense_cholesky")
+      spa_method = SBA_DENSE_CHOLESKY;
+    else if(spa_method_string == "gradient")
+      spa_method = SBA_GRADIENT;
+    else if(spa_method_string == "block_jacobian_pcg")
+      spa_method = SBA_BLOCK_JACOBIAN_PCG;
+    else if(spa_method_string != "sparse_cholesky")
+      ROS_WARN_STREAM("\"" << spa_method_string << "\" is an invalid spa_parameter value. Valid values are "
+          "\"sparse_cholesky,\" \"dense_cholesky,\" \"gradient,\" and \"block_jacobian_pcg.\" "
+          "Assuming sparse_cholesky.");
+  }
+
+  solver_->SetSpaMethod(spa_method);
   mapper_->SetScanSolver(solver_);
 }
 
