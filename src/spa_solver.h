@@ -44,6 +44,7 @@ public:
 
   virtual void AddNode(karto::Vertex<karto::LocalizedRangeScan>* pVertex);
   virtual void AddConstraint(karto::Edge<karto::LocalizedRangeScan>* pEdge);
+  virtual void SetSpaMethod(const int method);
 
   // Get the underlying graph from SBA
   // return the graph of constraints
@@ -54,6 +55,8 @@ private:
   karto::ScanSolver::IdPoseVector corrections;
 
   sba::SysSPA2d m_Spa;
+
+  int m_SpaMethod;
 };
 
 #endif // KARTO_SPASOLVER_H
