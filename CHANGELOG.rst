@@ -2,8 +2,12 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.7.3 (2016-02-04)
+0.7.3 (2016-08-23)
 ------------------
+* Parameterizing sparse pose adjustment method
+* Update karto_slam.launch
+* Contributors: Harsh Pandya, Michael Ferguson, Tom Moore
+* 0.7.3 (2016-02-04)
 * fixed the upside-down detection
 * update maintainer email
 * Contributors: Michael Ferguson, mgerdzhev
