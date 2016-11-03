@@ -700,21 +700,20 @@ SlamKarto::addScan(karto::LaserRangeFinder* laser,
       tf_.transformPose(odom_frame_,tf::Stamped<tf::Pose> (tf::Transform(tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
                                                                     tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0)).inverse(),
                                                                     scan->header.stamp, base_frame_),odom_to_map);
+
+      map_to_odom_mutex_.lock();
+      map_to_odom_ = tf::Transform(tf::Quaternion( odom_to_map.getRotation() ),
+	                       tf::Point(      odom_to_map.getOrigin() ) ).inverse();
+      map_to_odom_mutex_.unlock();
+
+      // Add the localized range scan to the dataset (for memory management)
+      dataset_->Add(range_scan);
     }
     catch(tf::TransformException e)
     {
       ROS_ERROR("Transform from base_link to odom failed\n");
-      odom_to_map.setIdentity();
+      delete range_scan;
     }
-
-    map_to_odom_mutex_.lock();
-    map_to_odom_ = tf::Transform(tf::Quaternion( odom_to_map.getRotation() ),
-                                 tf::Point(      odom_to_map.getOrigin() ) ).inverse();
-    map_to_odom_mutex_.unlock();
-
-
-    // Add the localized range scan to the dataset (for memory management)
-    dataset_->Add(range_scan);
   }
   else
     delete range_scan;
