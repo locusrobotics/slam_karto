@@ -703,17 +703,13 @@ SlamKarto::addScan(karto::LaserRangeFinder* laser,
 
     ros::Time transform_time = scan->header.stamp;
 
-    if (!tf_.canTransform(odom_frame_, base_frame_, scan->header.stamp))
+    if (!tf_.canTransform(odom_frame_, base_frame_, transform_time))
     {
       transform_time = ros::Time(0);
     }
 
     try
     {
-      tf::Transform cor_pose_trans(
-        tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
-        tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
-
       tf_.transformPose(odom_frame_, tf::Stamped<tf::Pose>(cor_pose_trans.inverse(), transform_time, base_frame_), odom_to_map);
 
       map_to_odom_mutex_.lock();
