@@ -114,7 +114,8 @@ SlamKarto::SlamKarto() :
         got_map_(false),
         laser_count_(0),
         transform_thread_(NULL),
-        marker_count_(0)
+        marker_count_(0),
+        tf_(ros::Duration(60.0))
 {
   map_to_odom_.setIdentity();
   // Retrieve parameters
@@ -694,12 +695,26 @@ SlamKarto::addScan(karto::LaserRangeFinder* laser,
     karto::Pose2 corrected_pose = range_scan->GetCorrectedPose();
 
     // Compute the map->odom transform
+    tf::Transform cor_pose_trans(
+      tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
+      tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
+
     tf::Stamped<tf::Pose> odom_to_map;
+
+    ros::Time transform_time = scan->header.stamp;
+
+    if (!tf_.canTransform(odom_frame_, base_frame_, scan->header.stamp))
+    {
+      transform_time = ros::Time(0);
+    }
+
     try
     {
-      tf_.transformPose(odom_frame_,tf::Stamped<tf::Pose> (tf::Transform(tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
-                                                                    tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0)).inverse(),
-                                                                    scan->header.stamp, base_frame_),odom_to_map);
+      tf::Transform cor_pose_trans(
+        tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
+        tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
+
+      tf_.transformPose(odom_frame_, tf::Stamped<tf::Pose>(cor_pose_trans.inverse(), transform_time, base_frame_), odom_to_map);
 
       map_to_odom_mutex_.lock();
       map_to_odom_ = tf::Transform(tf::Quaternion( odom_to_map.getRotation() ),
@@ -713,6 +728,7 @@ SlamKarto::addScan(karto::LaserRangeFinder* laser,
     {
       ROS_ERROR("Transform from base_link to odom failed\n");
       delete range_scan;
+      processed = false;
     }
   }
   else
