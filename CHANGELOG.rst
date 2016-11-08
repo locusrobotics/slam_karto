@@ -4,6 +4,10 @@ Changelog for package slam_karto
 
 0.7.3 (2016-08-23)
 ------------------
+* Being a bit more robust about transform handling
+* Changing behavior when a transform from odom->base_link fails
+* Parameterizing sparse pose adjustment method
+* Update karto_slam.launch
 * Parameterizing sparse pose adjustment method
 * Update karto_slam.launch
 * Contributors: Harsh Pandya, Michael Ferguson, Tom Moore
