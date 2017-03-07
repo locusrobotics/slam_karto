@@ -321,8 +321,13 @@ SlamKarto::~SlamKarto()
     delete mapper_;
   if (dataset_)
     delete dataset_;
-  // TODO: delete the pointers in the lasers_ map; not sure whether or not
-  // I'm supposed to do that.
+  for (std::map<std::string, karto::LaserRangeFinder*>::iterator iter = lasers_.begin();
+       iter != lasers_.end();
+       ++iter)
+  {
+    delete iter->second;
+  }
+  lasers_.clear();
 }
 
 void
