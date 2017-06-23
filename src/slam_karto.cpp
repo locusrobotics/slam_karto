@@ -102,14 +102,6 @@ class SlamKarto
      */
     void publishGraphVisualization();
 
-    /**
-     * @brief Thread function for publishing the pose graph visualization at a regular interval
-     *
-     * Publishing in a separate thread allows the visualization loop to wait for the graph to be available without
-     * interferring with the ROS callbacks.
-     */
-    void visualizationLoop(double visualization_publish_period);
-
     // ROS handles
     ros::NodeHandle node_;
     tf::TransformListener tf_;
@@ -146,7 +138,6 @@ class SlamKarto
     int laser_count_;
     boost::thread* transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
     boost::thread* map_thread_;  //!< Separate thread for building the map image/occupancy grid.
-    boost::thread* visualization_thread_;  //!< Separate thread for publishing the graph visualization.
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
@@ -157,7 +148,6 @@ SlamKarto::SlamKarto() :
         laser_count_(0),
         transform_thread_(NULL),
         map_thread_(NULL),
-        visualization_thread_(NULL),
         marker_count_(0),
         tf_(ros::Duration(60.0))
 {
@@ -183,8 +173,6 @@ SlamKarto::SlamKarto() :
   }
   double transform_publish_period;
   private_nh_.param("transform_publish_period", transform_publish_period, 0.05);
-  double visualization_publish_period;
-  private_nh_.param("visualization_publish_period", visualization_publish_period, 5.0);
 
   // Set up advertisements and subscriptions
   tfB_ = new tf::TransformBroadcaster();
@@ -351,12 +339,6 @@ SlamKarto::SlamKarto() :
   // The map is not used by karto itself, so it may be built in parallel
   // without affecting the actual algorithm.
   map_thread_ = new boost::thread(boost::bind(&SlamKarto::mapLoop, this, map_update_interval));
-
-  // Create a thread to periodically publish the visualuzation marker array
-  // This is strangely cpu intensive. By moving it to a separate thread, we
-  // can avoid impacting the actual algorithm.
-  visualization_thread_ = new boost::thread(
-    boost::bind(&SlamKarto::visualizationLoop, this, visualization_publish_period));
 }
 
 SlamKarto::~SlamKarto()
@@ -370,11 +352,6 @@ SlamKarto::~SlamKarto()
   {
     map_thread_->join();
     delete map_thread_;
-  }
-  if (visualization_thread_)
-  {
-    visualization_thread_->join();
-    delete visualization_thread_;
   }
   if (scan_filter_)
     delete scan_filter_;
@@ -525,21 +502,6 @@ SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
 }
 
 void
-SlamKarto::visualizationLoop(double visualization_publish_period)
-{
-  // If the publih period <= 0, never publish the visualization
-  if (visualization_publish_period <= 0)
-    return;
-
-  ros::Rate r(1.0 / visualization_publish_period);
-  while (ros::ok())
-  {
-    publishGraphVisualization();
-    r.sleep();
-  }
-}
-
-void
 SlamKarto::publishGraphVisualization()
 {
   // Only compute the visualization marker if someone is listening
@@ -679,6 +641,7 @@ SlamKarto::mapLoop(double map_update_interval)
   while (ros::ok())
   {
     updateMap();
+    publishGraphVisualization();
     r.sleep();
   }
 }
