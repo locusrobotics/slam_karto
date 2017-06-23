@@ -65,10 +65,42 @@ class SlamKarto
     bool addScan(karto::LaserRangeFinder* laser,
                  const sensor_msgs::LaserScan::ConstPtr& scan,
                  karto::Pose2& karto_pose);
-    void mapLoop(double map_update_interval);
-    bool updateMap();
+
+    /**
+     * @brief Publish the most recent map->odom transform with the current time.
+     */
     void publishTransform();
+
+    /**
+     * @brief Thread function for publishing the map->odom transform at a regular interval
+     *
+     * Publishing in a separate thread ensures the transform timestamp is always recent, allowing tf to work
+     * correctly.
+     */
     void publishLoop(double transform_publish_period);
+
+    /**
+     * @brief Copy the scans from the mapper and build a new map.
+     *
+     * Note that this function blocks, waiting for access to the mapper's set of laserscans.
+     */
+    bool updateMap();
+
+    /**
+     * @brief Thread function for building and publishing the map
+     *
+     * Running the map generation code in a separate thread allows the mapping process to (a) wait for the
+     * optimization thread to complete without affecting the servicing of ROS callbacks, and (b) allow the
+     * map building process as much time as needed to complete without interfering with the optimization or
+     * ROS callbacks. The map building process can take a long time (>1s), even for moderately sized spaces.
+     */
+    void mapLoop(double map_update_interval);
+
+    /**
+     * @brief Publish an updated visualization of the pose graph
+     *
+     * Note that this function blocks, waiting for access to the mapper's graph.
+     */
     void publishGraphVisualization();
 
     // ROS handles
@@ -105,8 +137,8 @@ class SlamKarto
     // Internal state
     bool got_map_;
     int laser_count_;
-    boost::thread* transform_thread_;
-    boost::thread* map_thread_;
+    boost::thread* transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
+    boost::thread* map_thread_;  //!< Separate thread for building the map image/occupancy grid.
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
