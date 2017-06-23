@@ -14,15 +14,26 @@ find_package(catkin REQUIRED
     tf
     visualization_msgs
 )
+find_package(Boost REQUIRED COMPONENTS thread)
 find_package(Eigen REQUIRED)
 
-include_directories(${catkin_INCLUDE_DIRS} ${EIGEN_INCLUDE_DIRS})
+include_directories(
+  ${Boost_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+  ${EIGEN_INCLUDE_DIRS}
+)
 add_definitions(${EIGEN_DEFINITIONS})
 
 catkin_package()
 
-add_executable(slam_karto src/slam_karto.cpp src/spa_solver.cpp)
-target_link_libraries(slam_karto ${catkin_LIBRARIES})
+add_executable(slam_karto
+  src/slam_karto.cpp
+  src/spa_solver.cpp
+)
+target_link_libraries(slam_karto
+  ${Boost_LIBRARIES}
+  ${catkin_LIBRARIES}
+)
 
 install(TARGETS slam_karto
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
