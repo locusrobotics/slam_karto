@@ -42,8 +42,10 @@
 
 #include <boost/thread.hpp>
 
-#include <string>
 #include <map>
+#include <set>
+#include <string>
+#include <utility>
 #include <vector>
 
 class SlamKarto
@@ -540,82 +542,90 @@ SlamKarto::visualizationLoop(double visualization_publish_period)
 void
 SlamKarto::publishGraphVisualization()
 {
-  std::vector<float> graph;
-  solver_->getGraph(graph);
-
-  visualization_msgs::MarkerArray marray;
-
-  visualization_msgs::Marker m;
-  m.header.frame_id = "map";
-  m.header.stamp = ros::Time::now();
-  m.id = 0;
-  m.ns = "karto";
-  m.type = visualization_msgs::Marker::SPHERE;
-  m.pose.position.x = 0.0;
-  m.pose.position.y = 0.0;
-  m.pose.position.z = 0.0;
-  m.scale.x = 0.1;
-  m.scale.y = 0.1;
-  m.scale.z = 0.1;
-  m.color.r = 1.0;
-  m.color.g = 0;
-  m.color.b = 0.0;
-  m.color.a = 1.0;
-  m.lifetime = ros::Duration(0);
-
-  visualization_msgs::Marker edge;
-  edge.header.frame_id = "map";
-  edge.header.stamp = ros::Time::now();
-  edge.action = visualization_msgs::Marker::ADD;
-  edge.ns = "karto";
-  edge.id = 0;
-  edge.type = visualization_msgs::Marker::LINE_STRIP;
-  edge.scale.x = 0.1;
-  edge.scale.y = 0.1;
-  edge.scale.z = 0.1;
-  edge.color.a = 1.0;
-  edge.color.r = 0.0;
-  edge.color.g = 0.0;
-  edge.color.b = 1.0;
-
-  m.action = visualization_msgs::Marker::ADD;
-  uint id = 0;
-  for (uint i=0; i<graph.size()/2; i++) 
+  // Only compute the visualization marker if someone is listening
+  if (marker_publisher_.getNumSubscribers() > 0)
   {
-    m.id = id;
-    m.pose.position.x = graph[2*i];
-    m.pose.position.y = graph[2*i+1];
-    marray.markers.push_back(visualization_msgs::Marker(m));
-    id++;
-
-    if(i>0)
+    // Copy the graph from the solver, limiting the time the solver
+    // must be locked
+    std::vector<float> graph;
     {
-      edge.points.clear();
-
-      geometry_msgs::Point p;
-      p.x = graph[2*(i-1)];
-      p.y = graph[2*(i-1)+1];
-      edge.points.push_back(p);
-      p.x = graph[2*i];
-      p.y = graph[2*i+1];
-      edge.points.push_back(p);
-      edge.id = id;
-
-      marray.markers.push_back(visualization_msgs::Marker(edge));
-      id++;
+      boost::mutex::scoped_lock lock(mapper_mutex_);
+      solver_->getGraph(graph);  // The solver is used by the mapper, so we lock the mapper mutex to ensure access
     }
+
+    visualization_msgs::Marker nodes;
+    nodes.header.frame_id = "map";
+    nodes.header.stamp = ros::Time::now();
+    nodes.ns = "karto";
+    nodes.id = 0;
+    nodes.action = visualization_msgs::Marker::ADD;
+    nodes.type = visualization_msgs::Marker::SPHERE_LIST;
+    nodes.pose.position.x = 0.0;
+    nodes.pose.position.y = 0.0;
+    nodes.pose.position.z = 0.0;
+    nodes.scale.x = 0.1;
+    nodes.scale.y = 0.1;
+    nodes.scale.z = 0.1;
+    nodes.color.r = 1.0;
+    nodes.color.g = 0.0;
+    nodes.color.b = 0.0;
+    nodes.color.a = 1.0;
+    nodes.lifetime = ros::Duration(0);
+
+    visualization_msgs::Marker edges;
+    edges.header.frame_id = "map";
+    edges.header.stamp = ros::Time::now();
+    edges.ns = "karto";
+    edges.id = 1;
+    edges.action = visualization_msgs::Marker::ADD;
+    edges.type = visualization_msgs::Marker::LINE_LIST;
+    edges.scale.x = 0.035;
+    edges.scale.y = 0.035;
+    edges.scale.z = 0.035;
+    edges.color.r = 0.0;
+    edges.color.g = 0.0;
+    edges.color.b = 1.0;
+    edges.color.a = 1.0;
+    edges.lifetime = ros::Duration(0);
+
+    std::set< std::pair<double, double> > nodes_points;
+    for (uint i = 0; i < graph.size() / 4; i++)
+    {
+      // Convert the graph into a set of linked poses
+      geometry_msgs::Point point1;
+      point1.x = graph[4 * i + 0];
+      point1.y = graph[4 * i + 1];
+      geometry_msgs::Point point2;
+      point2.x = graph[4 * i + 2];
+      point2.y = graph[4 * i + 3];
+
+      // Store each pose in a sorted container to remove duplicates.
+      // The ROS messages do not provide comparison operators to do
+      // this with message types in a container.
+      nodes_points.insert(std::pair<double, double>(point1.x, point1.y));
+      nodes_points.insert(std::pair<double, double>(point2.x, point2.y));
+
+      // Add each pair of poses as an edge in the line list
+      edges.points.push_back(point1);
+      edges.points.push_back(point2);
+    }
+
+    // Add each unique pose as a point in the sphere list
+    for (std::set<std::pair<double, double> >::const_iterator it = nodes_points.begin(); it != nodes_points.end(); ++it)
+    {
+      geometry_msgs::Point point;
+      point.x = it->first;
+      point.y = it->second;
+      nodes.points.push_back(point);
+    }
+
+    // Create a single marker array message from the nodes and edges markers
+    visualization_msgs::MarkerArray marray;
+    marray.markers.push_back(nodes);
+    marray.markers.push_back(edges);
+
+    marker_publisher_.publish(marray);
   }
-
-  m.action = visualization_msgs::Marker::DELETE;
-  for (; id < marker_count_; id++) 
-  {
-    m.id = id;
-    marray.markers.push_back(visualization_msgs::Marker(m));
-  }
-
-  marker_count_ = marray.markers.size();
-
-  marker_publisher_.publish(marray);
 }
 
 void
