@@ -516,7 +516,7 @@ SlamKarto::publishGraphVisualization()
     }
 
     visualization_msgs::Marker nodes;
-    nodes.header.frame_id = "map";
+    nodes.header.frame_id = map_frame_;
     nodes.header.stamp = ros::Time::now();
     nodes.ns = "karto";
     nodes.id = 0;
@@ -535,7 +535,7 @@ SlamKarto::publishGraphVisualization()
     nodes.lifetime = ros::Duration(0);
 
     visualization_msgs::Marker edges;
-    edges.header.frame_id = "map";
+    edges.header.frame_id = map_frame_;
     edges.header.stamp = ros::Time::now();
     edges.ns = "karto";
     edges.id = 1;
