@@ -27,6 +27,7 @@ add_definitions(${EIGEN_DEFINITIONS})
 catkin_package()
 
 add_executable(slam_karto
+  src/navigation_pauser.cpp
   src/slam_karto.cpp
   src/spa_solver.cpp
 )

@@ -38,6 +38,7 @@
 
 #include "open_karto/Mapper.h"
 
+#include "navigation_pauser.h"
 #include "spa_solver.h"
 
 #include <boost/thread.hpp>
@@ -130,6 +131,7 @@ class SlamKarto
     karto::Mapper* mapper_;
     karto::Dataset* dataset_;
     SpaSolver* solver_;
+    NavigationPauser* navigation_pauser_;  //!< Listen to loop closure events from karto and pause nav
     std::map<std::string, karto::LaserRangeFinder*> lasers_;
     std::map<std::string, bool> lasers_inverted_;
 
@@ -144,6 +146,7 @@ class SlamKarto
 };
 
 SlamKarto::SlamKarto() :
+        navigation_pauser_(NULL),
         got_map_(false),
         laser_count_(0),
         transform_thread_(NULL),
@@ -187,6 +190,8 @@ SlamKarto::SlamKarto() :
   // Initialize Karto structures
   mapper_ = new karto::Mapper();
   dataset_ = new karto::Dataset();
+  navigation_pauser_ = new NavigationPauser(node_, private_nh_);
+  mapper_->AddListener(navigation_pauser_);
 
   // Setting General Parameters from the Parameter Server
   bool use_scan_matching;
@@ -370,6 +375,8 @@ SlamKarto::~SlamKarto()
     delete iter->second;
   }
   lasers_.clear();
+  if (navigation_pauser_)
+    delete navigation_pauser_;
 }
 
 void
