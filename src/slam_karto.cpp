@@ -46,9 +46,6 @@
 #include <map>
 #include <vector>
 
-// compute linear index for given map coords
-#define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
-
 class SlamKarto
 {
   public:
@@ -690,17 +687,17 @@ SlamKarto::updateMap()
       {
         // Getting the value at position x,y
         kt_int8u value = occ_grid->GetValue(karto::Vector2<kt_int32s>(x, y));
-
+        size_t index = map_.map.info.width * y + x;
         switch (value)
         {
           case karto::GridStates_Unknown:
-            map_.map.data[MAP_IDX(map_.map.info.width, x, y)] = -1;
+            map_.map.data[index] = -1;
             break;
           case karto::GridStates_Occupied:
-            map_.map.data[MAP_IDX(map_.map.info.width, x, y)] = 100;
+            map_.map.data[index] = 100;
             break;
           case karto::GridStates_Free:
-            map_.map.data[MAP_IDX(map_.map.info.width, x, y)] = 0;
+            map_.map.data[index] = 0;
             break;
           default:
             ROS_WARN("Encountered unknown cell value at %d, %d", x, y);
