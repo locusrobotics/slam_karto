@@ -46,9 +46,6 @@
 #include <map>
 #include <vector>
 
-// compute linear index for given map coords
-#define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
-
 class SlamKarto
 {
   public:
@@ -65,9 +62,42 @@ class SlamKarto
     bool addScan(karto::LaserRangeFinder* laser,
                  const sensor_msgs::LaserScan::ConstPtr& scan,
                  karto::Pose2& karto_pose);
-    bool updateMap();
+
+    /**
+     * @brief Publish the most recent map->odom transform with the current time.
+     */
     void publishTransform();
+
+    /**
+     * @brief Thread function for publishing the map->odom transform at a regular interval
+     *
+     * Publishing in a separate thread ensures the transform timestamp is always recent, allowing tf to work
+     * correctly.
+     */
     void publishLoop(double transform_publish_period);
+
+    /**
+     * @brief Copy the scans from the mapper and build a new map.
+     *
+     * Note that this function blocks, waiting for access to the mapper's set of laserscans.
+     */
+    bool updateMap();
+
+    /**
+     * @brief Thread function for building and publishing the map
+     *
+     * Running the map generation code in a separate thread allows the mapping process to (a) wait for the
+     * optimization thread to complete without affecting the servicing of ROS callbacks, and (b) allow the
+     * map building process as much time as needed to complete without interfering with the optimization or
+     * ROS callbacks. The map building process can take a long time (>1s), even for moderately sized spaces.
+     */
+    void mapLoop(double map_update_interval);
+
+    /**
+     * @brief Publish an updated visualization of the pose graph
+     *
+     * Note that this function blocks, waiting for access to the mapper's graph.
+     */
     void publishGraphVisualization();
 
     // ROS handles
@@ -89,10 +119,10 @@ class SlamKarto
     std::string map_frame_;
     std::string base_frame_;
     int throttle_scans_;
-    ros::Duration map_update_interval_;
     double resolution_;
     boost::mutex map_mutex_;
     boost::mutex map_to_odom_mutex_;
+    boost::mutex mapper_mutex_;
 
     // Karto bookkeeping
     karto::Mapper* mapper_;
@@ -104,7 +134,8 @@ class SlamKarto
     // Internal state
     bool got_map_;
     int laser_count_;
-    boost::thread* transform_thread_;
+    boost::thread* transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
+    boost::thread* map_thread_;  //!< Separate thread for building the map image/occupancy grid.
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
@@ -114,6 +145,7 @@ SlamKarto::SlamKarto() :
         got_map_(false),
         laser_count_(0),
         transform_thread_(NULL),
+        map_thread_(NULL),
         marker_count_(0),
         tf_(ros::Duration(60.0))
 {
@@ -128,10 +160,8 @@ SlamKarto::SlamKarto() :
     base_frame_ = "base_link";
   if(!private_nh_.getParam("throttle_scans", throttle_scans_))
     throttle_scans_ = 1;
-  double tmp;
-  if(!private_nh_.getParam("map_update_interval", tmp))
-    tmp = 5.0;
-  map_update_interval_.fromSec(tmp);
+  double map_update_interval;
+  private_nh_.param("map_update_interval", map_update_interval, 5.0);
   if(!private_nh_.getParam("resolution", resolution_))
   {
     // Compatibility with slam_gmapping, which uses "delta" to mean
@@ -151,11 +181,6 @@ SlamKarto::SlamKarto() :
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
   marker_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("visualization_marker_array",1);
-
-  // Create a thread to periodically publish the latest map->odom
-  // transform; it needs to go out regularly, uninterrupted by potentially
-  // long periods of computation in our main loop.
-  transform_thread_ = new boost::thread(boost::bind(&SlamKarto::publishLoop, this, transform_publish_period));
 
   // Initialize Karto structures
   mapper_ = new karto::Mapper();
@@ -302,6 +327,16 @@ SlamKarto::SlamKarto() :
 
   solver_->SetSpaMethod(spa_method);
   mapper_->SetScanSolver(solver_);
+
+  // Create a thread to periodically publish the latest map->odom
+  // transform; it needs to go out regularly, uninterrupted by potentially
+  // long periods of computation in our main loop.
+  transform_thread_ = new boost::thread(boost::bind(&SlamKarto::publishLoop, this, transform_publish_period));
+
+  // Create a thread to periodically rebuild the map from the laserscans.
+  // The map is not used by karto itself, so it may be built in parallel
+  // without affecting the actual algorithm.
+  map_thread_ = new boost::thread(boost::bind(&SlamKarto::mapLoop, this, map_update_interval));
 }
 
 SlamKarto::~SlamKarto()
@@ -310,6 +345,11 @@ SlamKarto::~SlamKarto()
   {
     transform_thread_->join();
     delete transform_thread_;
+  }
+  if (map_thread_)
+  {
+    map_thread_->join();
+    delete map_thread_;
   }
   if (scan_filter_)
     delete scan_filter_;
@@ -568,92 +608,115 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
               odom_pose.GetHeading());
 
     publishGraphVisualization();
+  }
+}
 
-    if(!got_map_ || 
-       (scan->header.stamp - last_map_update) > map_update_interval_)
-    {
-      if(updateMap())
-      {
-        last_map_update = scan->header.stamp;
-        got_map_ = true;
-        ROS_DEBUG("Updated the map");
-      }
-    }
+void
+SlamKarto::mapLoop(double map_update_interval)
+{
+  // Initialize the map information
+  map_.map.info.resolution = resolution_;
+  map_.map.info.origin.position.x = 0.0;
+  map_.map.info.origin.position.y = 0.0;
+  map_.map.info.origin.position.z = 0.0;
+  map_.map.info.origin.orientation.x = 0.0;
+  map_.map.info.origin.orientation.y = 0.0;
+  map_.map.info.origin.orientation.z = 0.0;
+  map_.map.info.origin.orientation.w = 1.0;
+
+  // If the map update interval is set to zero, never build a map
+  if (map_update_interval <= 0)
+    return;
+
+  // Configure a rate loop for regenerating the map
+  ros::Rate r(1.0 / map_update_interval);
+  while (ros::ok())
+  {
+    updateMap();
+    r.sleep();
   }
 }
 
 bool
 SlamKarto::updateMap()
 {
-  boost::mutex::scoped_lock lock(map_mutex_);
-
-  karto::OccupancyGrid* occ_grid = 
-          karto::OccupancyGrid::CreateFromScans(mapper_->GetAllProcessedScans(), resolution_);
-
-  if(!occ_grid)
-    return false;
-
-  if(!got_map_) {
-    map_.map.info.resolution = resolution_;
-    map_.map.info.origin.position.x = 0.0;
-    map_.map.info.origin.position.y = 0.0;
-    map_.map.info.origin.position.z = 0.0;
-    map_.map.info.origin.orientation.x = 0.0;
-    map_.map.info.origin.orientation.y = 0.0;
-    map_.map.info.origin.orientation.z = 0.0;
-    map_.map.info.origin.orientation.w = 1.0;
-  } 
-
-  // Translate to ROS format
-  kt_int32s width = occ_grid->GetWidth();
-  kt_int32s height = occ_grid->GetHeight();
-  karto::Vector2<kt_double> offset = occ_grid->GetCoordinateConverter()->GetOffset();
-
-  if(map_.map.info.width != (unsigned int) width || 
-     map_.map.info.height != (unsigned int) height ||
-     map_.map.info.origin.position.x != offset.GetX() ||
-     map_.map.info.origin.position.y != offset.GetY())
+  // Copy the laserscans locally to minimize the time when karto must be locked
+  karto::LocalizedRangeScanVector scans;
   {
-    map_.map.info.origin.position.x = offset.GetX();
-    map_.map.info.origin.position.y = offset.GetY();
-    map_.map.info.width = width;
-    map_.map.info.height = height;
-    map_.map.data.resize(map_.map.info.width * map_.map.info.height);
+    boost::mutex::scoped_lock lock(mapper_mutex_);
+    scans = mapper_->GetAllProcessedScans();
   }
 
-  for (kt_int32s y=0; y<height; y++)
-  {
-    for (kt_int32s x=0; x<width; x++) 
-    {
-      // Getting the value at position x,y
-      kt_int8u value = occ_grid->GetValue(karto::Vector2<kt_int32s>(x, y));
+  // Build the map
+  karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
 
-      switch (value)
+  // Abort if no map was generated
+  if (occ_grid == NULL)
+  {
+    return false;
+  } 
+
+  // Update the map_ member variable with the newly generated map
+  {
+    boost::mutex::scoped_lock lock(map_mutex_);
+
+    // Set the header information
+    map_.map.header.stamp = ros::Time::now();
+    map_.map.header.frame_id = map_frame_;
+
+    // Translate to ROS format
+    kt_int32s width = occ_grid->GetWidth();
+    kt_int32s height = occ_grid->GetHeight();
+    karto::Vector2<kt_double> offset = occ_grid->GetCoordinateConverter()->GetOffset();
+
+    if (map_.map.info.width != (unsigned int) width ||
+        map_.map.info.height != (unsigned int) height ||
+        map_.map.info.origin.position.x != offset.GetX() ||
+        map_.map.info.origin.position.y != offset.GetY())
+    {
+      map_.map.info.origin.position.x = offset.GetX();
+      map_.map.info.origin.position.y = offset.GetY();
+      map_.map.info.width = width;
+      map_.map.info.height = height;
+      map_.map.data.resize(map_.map.info.width * map_.map.info.height);
+    }
+
+    for (kt_int32s y = 0; y < height; y++)
+    {
+      for (kt_int32s x = 0; x < width; x++)
       {
-        case karto::GridStates_Unknown:
-          map_.map.data[MAP_IDX(map_.map.info.width, x, y)] = -1;
-          break;
-        case karto::GridStates_Occupied:
-          map_.map.data[MAP_IDX(map_.map.info.width, x, y)] = 100;
-          break;
-        case karto::GridStates_Free:
-          map_.map.data[MAP_IDX(map_.map.info.width, x, y)] = 0;
-          break;
-        default:
-          ROS_WARN("Encountered unknown cell value at %d, %d", x, y);
-          break;
+        // Getting the value at position x,y
+        kt_int8u value = occ_grid->GetValue(karto::Vector2<kt_int32s>(x, y));
+        size_t index = map_.map.info.width * y + x;
+        switch (value)
+        {
+          case karto::GridStates_Unknown:
+            map_.map.data[index] = -1;
+            break;
+          case karto::GridStates_Occupied:
+            map_.map.data[index] = 100;
+            break;
+          case karto::GridStates_Free:
+            map_.map.data[index] = 0;
+            break;
+          default:
+            ROS_WARN("Encountered unknown cell value at %d, %d", x, y);
+            break;
+        }
       }
     }
   }
-  
-  // Set the header information on the map
-  map_.map.header.stamp = ros::Time::now();
-  map_.map.header.frame_id = map_frame_;
 
+  // Delete the temporary Karto map object
+  delete occ_grid;
+
+  // Publish the map
   sst_.publish(map_.map);
   sstm_.publish(map_.map.info);
 
-  delete occ_grid;
+  // A new map was generated
+  got_map_ = true;
+  ROS_DEBUG("Updated the map");
 
   return true;
 }
@@ -693,7 +756,11 @@ SlamKarto::addScan(karto::LaserRangeFinder* laser,
 
   // Add the localized range scan to the mapper
   bool processed;
-  if((processed = mapper_->Process(range_scan)))
+  {
+    boost::mutex::scoped_lock lock(mapper_mutex_);
+    processed = mapper_->Process(range_scan);
+  }
+  if (processed)
   {
     //std::cout << "Pose: " << range_scan->GetOdometricPose() << " Corrected Pose: " << range_scan->GetCorrectedPose() << std::endl;
     
