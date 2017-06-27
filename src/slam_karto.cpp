@@ -188,6 +188,8 @@ SlamKarto::SlamKarto() :
     base_frame_ = "base_link";
   if(!private_nh_.getParam("throttle_scans", throttle_scans_))
     throttle_scans_ = 1;
+  double map_update_interval;
+  private_nh_.param("map_update_interval", map_update_interval, 5.0);
   if(!private_nh_.getParam("resolution", resolution_))
   {
     // Compatibility with slam_gmapping, which uses "delta" to mean
@@ -198,8 +200,6 @@ SlamKarto::SlamKarto() :
   private_nh_.param("pause_on_loop_closure", pause_on_loop_closure_, false);
   double transform_publish_period;
   private_nh_.param("transform_publish_period", transform_publish_period, 0.05);
-  double map_update_interval;
-  private_nh_.param("map_update_interval", map_update_interval, 5.0);
 
   // Set up advertisements and subscriptions
   tfB_ = new tf::TransformBroadcaster();
