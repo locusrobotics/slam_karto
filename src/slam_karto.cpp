@@ -529,22 +529,18 @@ SlamKarto::optimizationLoop()
     {
       resumeNavigation();
     }
-    // Get the next laser scan off the queue and unlock
-    // so ROS can continue filling the buffer.
+    // Get the next laser scan off the queue and unlock so ROS can continue filling the buffer.
     karto::LocalizedRangeScan* range_scan = scan_queue_.front();
     scan_queue_.pop_front();
     scan_queue_lock.unlock();
-    // But now we need to use the karto mapper.
-    // Acquire a lock for it before modifying
-    // the graph.
+    // But now we need to use the karto mapper. Acquire a lock for it before modifying the graph.
     bool processed = false;
     {
       boost::mutex::scoped_lock lock(mapper_mutex_);
       // Finally, process the scan with karto
       processed = mapper_->Process(range_scan);
     }
-    // If this scan was successfully processed, then update the
-    // tf map->odom transform
+    // If this scan was successfully processed, then update the tf map->odom transform
     if (processed)
     {
       // Update the map->odom transform using this scan's optimized pose
