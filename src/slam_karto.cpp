@@ -43,7 +43,10 @@
 #include <slam_karto/loop_closure_callback.h>
 #include "spa_solver.h"
 
+#include <boost/algorithm/clamp.hpp>
+#include <boost/circular_buffer.hpp>
 #include <boost/thread.hpp>
+#include <boost/thread/condition.hpp>
 
 #include <map>
 #include <set>
@@ -76,12 +79,31 @@ class SlamKarto
     */
     void resumeNavigation();
 
+    /**
+     * @brief Returns the percentage filled of the scan queue in the range [0.0, 1.0]
+     */
+    double queueFillPercentage() const { return static_cast<double>(scan_queue_.size()) / scan_queue_.capacity(); }
+
   private:
     bool getOdomPose(karto::Pose2& karto_pose, const ros::Time& t);
     karto::LaserRangeFinder* getLaser(const sensor_msgs::LaserScan::ConstPtr& scan);
-    bool addScan(karto::LaserRangeFinder* laser,
-                 const sensor_msgs::LaserScan::ConstPtr& scan,
-                 karto::Pose2& karto_pose);
+
+    /**
+     * @brief Convert a ROS sensor_msgs::Laserscan into a karto::LocalizedRangeScan
+     */
+    karto::LocalizedRangeScan* convertScan(karto::LaserRangeFinder* laser,
+      const sensor_msgs::LaserScan::ConstPtr& scan);
+
+    /**
+     * @brief Updates the map->odom frame transform using the optimized pose of the provided range scan
+     */
+    void updateMapToOdomTransform(karto::LocalizedRangeScan* range_scan);
+
+    /**
+     * @brief Checks if the pose of the provided scan is sufficiently different from the previous
+     * scan to be added to the pose graph.
+     */
+    bool hasMovedEnough(const karto::LocalizedRangeScan* scan);
 
     /**
      * @brief Publish the most recent map->odom transform with the current time.
@@ -120,6 +142,15 @@ class SlamKarto
      */
     void publishGraphVisualization();
 
+    /**
+     * @brief Thread function for updating the pose graph
+     *
+     * The received laserscans are queued for the processing in the main ROS callback thread. In this thread, the
+     * queued laserscans are processed by the Karto mapper one at a time. This prevents the system from dropping
+     * scans during long runing Karto updates.
+     */
+    void optimizationLoop();
+
     // ROS handles
     ros::NodeHandle node_;
     tf::TransformListener tf_;
@@ -143,6 +174,9 @@ class SlamKarto
     int throttle_scans_;
     double resolution_;
     bool pause_on_loop_closure_;  //!< Issue pause/resume commands in response to loop closure events
+    bool pause_on_full_queue_;  //!< Issue pause/resume navigation commands in response to the queue size
+    double pause_navigation_percentage_;  //!< Only pause navigation when the queue is more than this full (0.0, 1.0)
+    double resume_navigation_percentage_;  //!< Only resume navigation when the queue is less than this full (0.0, 1.0)
     boost::mutex map_mutex_;
     boost::mutex map_to_odom_mutex_;
     boost::mutex mapper_mutex_;
@@ -160,10 +194,21 @@ class SlamKarto
     int laser_count_;
     boost::thread* transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
     boost::thread* map_thread_;  //!< Separate thread for building the map image/occupancy grid.
+    boost::thread* optimization_thread_;  //!< Separate thread running the Karto mapper optimizations.
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
     bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
+    bool first_scan_received_;  //!< Flag to track if the first scan was received
+    double last_scan_time_;  //!< The timestamp of the most recently queued range scan
+    karto::Pose2 last_scan_pose_;  //!< The odom frame pose of the most recently queued range scan
+
+    // Laserscan queue for to-be-processed scans
+    boost::circular_buffer<karto::LocalizedRangeScan*> scan_queue_;  //!< Fixed-sized buffer for storing range scans
+                                                                     //!< that have not been processed by the mapper yet
+    boost::condition_variable scan_queue_data_available_;  //!< Variable used to synchronize the producer and consumer
+                                                           //!< threads without a busy-wait queue size check
+    boost::mutex scan_queue_mutex_;  //!< Mutex lock for queue operations (push, pop, front)
 };
 
 SlamKarto::SlamKarto() :
@@ -173,9 +218,14 @@ SlamKarto::SlamKarto() :
         laser_count_(0),
         transform_thread_(NULL),
         map_thread_(NULL),
+        optimization_thread_(NULL),
         marker_count_(0),
         is_paused_(false),
-        tf_(ros::Duration(60.0))
+        tf_(ros::Duration(60.0)),
+        scan_queue_(1),
+        first_scan_received_(false),
+        last_scan_time_(0.0),
+        last_scan_pose_(0, 0, 0)
 {
   map_to_odom_.setIdentity();
   // Retrieve parameters
@@ -197,9 +247,27 @@ SlamKarto::SlamKarto() :
     if(!private_nh_.getParam("delta", resolution_))
       resolution_ = 0.05;
   }
-  private_nh_.param("pause_on_loop_closure", pause_on_loop_closure_, false);
   double transform_publish_period;
   private_nh_.param("transform_publish_period", transform_publish_period, 0.05);
+  private_nh_.param("pause_on_loop_closure", pause_on_loop_closure_, false);
+  private_nh_.param("pause_on_full_queue", pause_on_full_queue_, false);
+  private_nh_.param("pause_navigation_percentage", pause_navigation_percentage_, 0.90);
+  private_nh_.param("resume_navigation_percentage_", resume_navigation_percentage_, 0.10);
+  pause_navigation_percentage_ = boost::algorithm::clamp(pause_navigation_percentage_, 0.0, 1.0);
+  resume_navigation_percentage_ = boost::algorithm::clamp(resume_navigation_percentage_,
+    0.0, pause_navigation_percentage_);
+  int scan_queue_length;
+  if (private_nh_.getParam("scan_queue_length", scan_queue_length))
+  {
+    if (scan_queue_length > 0)
+    {
+      scan_queue_.set_capacity(scan_queue_length);
+    }
+    else
+    {
+      ROS_WARN_STREAM("Parameter scan_queue_length must be greater than zero. Ignoring.");
+    }
+  }
 
   // Set up advertisements and subscriptions
   tfB_ = new tf::TransformBroadcaster();
@@ -377,10 +445,19 @@ SlamKarto::SlamKarto() :
   // The map is not used by karto itself, so it may be built in parallel
   // without affecting the actual algorithm.
   map_thread_ = new boost::thread(boost::bind(&SlamKarto::mapLoop, this, map_update_interval));
+
+  // Create a thread for running the Karto scan processor. This allows the ROS callback
+  // system to continue to run, adding new scans to the scan queue for Karto to process
+  // when it has time. This prevents Karto from skipping scans when it gets busy.
+  optimization_thread_ = new boost::thread(
+    boost::bind(&SlamKarto::optimizationLoop, this));
 }
 
 SlamKarto::~SlamKarto()
 {
+  // Notify the queue condition variable so it will wake up from its sleep
+  scan_queue_data_available_.notify_all();
+  // Shutdown all of the threads
   if(transform_thread_)
   {
     transform_thread_->join();
@@ -390,6 +467,11 @@ SlamKarto::~SlamKarto()
   {
     map_thread_->join();
     delete map_thread_;
+  }
+  if (optimization_thread_)
+  {
+    optimization_thread_->join();
+    delete optimization_thread_;
   }
   if (scan_filter_)
     delete scan_filter_;
@@ -410,6 +492,98 @@ SlamKarto::~SlamKarto()
   lasers_.clear();
   if (loop_closure_pauser_)
     delete loop_closure_pauser_;
+  // Delete any pending laserscans
+  while (!scan_queue_.empty())
+  {
+    karto::LocalizedRangeScan* range_scan = scan_queue_.front();
+    scan_queue_.pop_front();
+    delete range_scan;
+  }
+}
+
+void
+SlamKarto::optimizationLoop()
+{
+  // Continue processing as long as ROS is running
+  while (ros::ok())
+  {
+    // Wait for data to arrive. The while-loop guards against spurious wakeups.
+    boost::mutex::scoped_lock scan_queue_lock(scan_queue_mutex_);
+    while (ros::ok() && scan_queue_.empty())
+    {
+      scan_queue_data_available_.wait(scan_queue_lock);
+    }
+    // Check if we are shutting down
+    if (!ros::ok())
+    {
+      return;
+    }
+    // The scan_queue_mutex is locked at this point.
+    // Resume navigation when the queue drops below the fill threshold
+    if (pause_on_full_queue_ && isPaused() && queueFillPercentage() < resume_navigation_percentage_)
+    {
+      resumeNavigation();
+    }
+    // Get the next laser scan off the queue and unlock
+    // so ROS can continue filling the buffer.
+    karto::LocalizedRangeScan* range_scan = scan_queue_.front();
+    scan_queue_.pop_front();
+    scan_queue_lock.unlock();
+    // But now we need to use the karto mapper.
+    // Acquire a lock for it before modifying
+    // the graph.
+    bool processed = false;
+    {
+      boost::mutex::scoped_lock lock(mapper_mutex_);
+      // Finally, process the scan with karto
+      processed = mapper_->Process(range_scan);
+    }
+    // If this scan was successfully processed, then update the
+    // tf map->odom transform
+    if (processed)
+    {
+      // Update the map->odom transform using this scan's optimized pose
+      updateMapToOdomTransform(range_scan);
+      // Add the localized range scan to the dataset (for memory management)
+      dataset_->Add(range_scan);
+    }
+    else
+    {
+      // We are not using this scan. Delete it now.
+      delete range_scan;
+    }
+  }
+}
+
+void
+SlamKarto::updateMapToOdomTransform(karto::LocalizedRangeScan* range_scan)
+{
+  karto::Pose2 corrected_pose = range_scan->GetCorrectedPose();
+  // Compute the map->odom transform
+  tf::Transform cor_pose_trans(
+    tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
+    tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
+  tf::Stamped<tf::Pose> odom_to_map;
+  ros::Time transform_time(range_scan->GetTime());
+  if (!tf_.canTransform(odom_frame_, base_frame_, transform_time))
+  {
+    transform_time = ros::Time(0);
+  }
+
+  try
+  {
+    tf_.transformPose(odom_frame_,
+      tf::Stamped<tf::Pose>(cor_pose_trans.inverse(), transform_time, base_frame_),
+      odom_to_map);
+
+    boost::mutex::scoped_lock lock(map_to_odom_mutex_);
+    map_to_odom_ = tf::Transform(tf::Quaternion(odom_to_map.getRotation()),
+      tf::Point(odom_to_map.getOrigin())).inverse();
+  }
+  catch(tf::TransformException e)
+  {
+    ROS_ERROR("Transform from base_link to odom failed\n");
+  }
 }
 
 void
@@ -637,11 +811,8 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
   if ((laser_count_ % throttle_scans_) != 0)
     return;
 
-  static ros::Time last_map_update(0,0);
-
   // Check whether we know about this laser yet
   karto::LaserRangeFinder* laser = getLaser(scan);
-
   if(!laser)
   {
     ROS_WARN("Failed to create laser device for %s; discarding scan",
@@ -649,13 +820,42 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     return;
   }
 
-  karto::Pose2 odom_pose;
-  if(addScan(laser, scan, odom_pose))
+  // Convert the laserscan into a Karto object
+  karto::LocalizedRangeScan* range_scan = convertScan(laser, scan);
+  if (!range_scan)
   {
+    return;
+  }
+
+  // Check if we have moved enough since the last scan to queue this one
+  // Karto performs a similar (hopefully 'identical') check during the
+  // Process() call. However, we perform this check here to prevent adding
+  // scans to the cache unless Karto will actually use them. Otherwise we
+  // will need a very large cache but most entries would just get throw away.
+  if (hasMovedEnough(range_scan))
+  {
+    // Print the debug info
+    karto::Pose2 odom_pose = range_scan->GetOdometricPose();
     ROS_DEBUG("added scan at pose: %.3f %.3f %.3f", 
               odom_pose.GetX(),
               odom_pose.GetY(),
               odom_pose.GetHeading());
+    // Tag this scan as the most recent scan
+    first_scan_received_ = true;
+    last_scan_time_ = range_scan->GetTime();
+    last_scan_pose_ = range_scan->GetOdometricPose();
+    // Push the laserscan into the processing queue
+    {
+      boost::mutex::scoped_lock lock(scan_queue_mutex_);
+      scan_queue_.push_back(range_scan);
+      // Pause navigation if the scan queue gets too full
+      if (pause_on_full_queue_ && !isPaused() && queueFillPercentage() > pause_navigation_percentage_)
+      {
+        pauseNavigation();
+      }
+    }
+    // Notify the optimization thread that data is available
+    scan_queue_data_available_.notify_one();
   }
 }
 
@@ -770,13 +970,41 @@ SlamKarto::updateMap()
   return true;
 }
 
-bool
-SlamKarto::addScan(karto::LaserRangeFinder* laser,
-		   const sensor_msgs::LaserScan::ConstPtr& scan, 
-                   karto::Pose2& karto_pose)
+bool SlamKarto::hasMovedEnough(const karto::LocalizedRangeScan* scan)
 {
-  if(!getOdomPose(karto_pose, scan->header.stamp))
-     return false;
+  // If we haven't received a laserscan yet, keep this one.
+  if (!first_scan_received_)
+  {
+    return true;
+  }
+
+  // Extract the 2d pose from the current scan
+  karto::Pose2 current_laser_pose = scan->GetOdometricPose();
+
+  // Check rotation
+  double delta_heading = karto::math::NormalizeAngle(current_laser_pose.GetHeading() - last_scan_pose_.GetHeading());
+  if (std::fabs(delta_heading) >= mapper_->getParamMinimumTravelHeading())
+  {
+    return true;
+  }
+
+  // Check distance traveled
+  double squared_delta_distance = last_scan_pose_.GetPosition().SquaredDistance(current_laser_pose.GetPosition());
+  if (squared_delta_distance >= karto::math::Square(mapper_->getParamMinimumTravelDistance()))
+  {
+    return true;
+  }
+
+  return false;
+}
+
+karto::LocalizedRangeScan*
+SlamKarto::convertScan(karto::LaserRangeFinder* laser,
+  const sensor_msgs::LaserScan::ConstPtr& scan)
+{
+  karto::Pose2 karto_pose;
+  if (!getOdomPose(karto_pose, scan->header.stamp))
+     return NULL;
   
   // Create a vector of doubles for karto
   std::vector<kt_double> readings;
@@ -800,58 +1028,11 @@ SlamKarto::addScan(karto::LaserRangeFinder* laser,
   // create localized range scan
   karto::LocalizedRangeScan* range_scan = 
     new karto::LocalizedRangeScan(laser->GetName(), readings);
+  range_scan->SetTime(scan->header.stamp.toSec());
   range_scan->SetOdometricPose(karto_pose);
   range_scan->SetCorrectedPose(karto_pose);
 
-  // Add the localized range scan to the mapper
-  bool processed;
-  {
-    boost::mutex::scoped_lock lock(mapper_mutex_);
-    processed = mapper_->Process(range_scan);
-  }
-  if (processed)
-  {
-    //std::cout << "Pose: " << range_scan->GetOdometricPose() << " Corrected Pose: " << range_scan->GetCorrectedPose() << std::endl;
-    
-    karto::Pose2 corrected_pose = range_scan->GetCorrectedPose();
-
-    // Compute the map->odom transform
-    tf::Transform cor_pose_trans(
-      tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
-      tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
-
-    tf::Stamped<tf::Pose> odom_to_map;
-
-    ros::Time transform_time = scan->header.stamp;
-
-    if (!tf_.canTransform(odom_frame_, base_frame_, transform_time))
-    {
-      transform_time = ros::Time(0);
-    }
-
-    try
-    {
-      tf_.transformPose(odom_frame_, tf::Stamped<tf::Pose>(cor_pose_trans.inverse(), transform_time, base_frame_), odom_to_map);
-
-      map_to_odom_mutex_.lock();
-      map_to_odom_ = tf::Transform(tf::Quaternion( odom_to_map.getRotation() ),
-	                       tf::Point(      odom_to_map.getOrigin() ) ).inverse();
-      map_to_odom_mutex_.unlock();
-
-      // Add the localized range scan to the dataset (for memory management)
-      dataset_->Add(range_scan);
-    }
-    catch(tf::TransformException e)
-    {
-      ROS_ERROR("Transform from base_link to odom failed\n");
-      delete range_scan;
-      processed = false;
-    }
-  }
-  else
-    delete range_scan;
-
-  return processed;
+  return range_scan;
 }
 
 bool 
