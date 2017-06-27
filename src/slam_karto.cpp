@@ -592,7 +592,7 @@ SlamKarto::publishLoop(double transform_publish_period)
   if(transform_publish_period == 0)
     return;
 
-  ros::Rate r(1.0 / transform_publish_period);
+  ros::WallRate r(1.0 / transform_publish_period);
   while(ros::ok())
   {
     publishTransform();
@@ -877,7 +877,7 @@ SlamKarto::mapLoop(double map_update_interval)
     return;
 
   // Configure a rate loop for regenerating the map
-  ros::Rate r(1.0 / map_update_interval);
+  ros::WallRate r(1.0 / map_update_interval);
   while (ros::ok())
   {
     updateMap();
