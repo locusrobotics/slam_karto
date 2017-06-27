@@ -151,6 +151,11 @@ class SlamKarto
      */
     void optimizationLoop();
 
+    /**
+     * @brief Display the queue fill precentage above the robot
+     */
+    void publishQueueVisualization();
+
     // ROS handles
     ros::NodeHandle node_;
     tf::TransformListener tf_;
@@ -805,6 +810,39 @@ SlamKarto::publishGraphVisualization()
 }
 
 void
+SlamKarto::publishQueueVisualization()
+{
+  // Publish queue status
+  if (scan_queue_.capacity() > 1 && marker_publisher_.getNumSubscribers() > 0)
+  {
+    visualization_msgs::Marker queue_size;
+    queue_size.header.frame_id = base_frame_;
+    queue_size.header.stamp = ros::Time::now();
+    queue_size.ns = "karto_scan_queue";
+    queue_size.id = 0;
+    queue_size.action = visualization_msgs::Marker::ADD;
+    queue_size.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+    queue_size.pose.position.x = 0.0;
+    queue_size.pose.position.y = 0.40;
+    queue_size.pose.position.z = 0.0;
+    queue_size.scale.x = 0.25;
+    queue_size.scale.y = 0.25;
+    queue_size.scale.z = 0.25;
+    queue_size.color.r = 0.0;
+    queue_size.color.g = 0.0;
+    queue_size.color.b = 0.0;
+    queue_size.color.a = 1.0;
+    queue_size.text = "queue: " + boost::lexical_cast<std::string>(static_cast<int>(queueFillPercentage()*100)) + "%";
+    queue_size.lifetime = ros::Duration(0.0);
+    queue_size.frame_locked = true;
+
+    visualization_msgs::MarkerArray marray;
+    marray.markers.push_back(queue_size);
+    marker_publisher_.publish(marray);
+  }
+}
+
+void
 SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
 {
   laser_count_++;
@@ -882,6 +920,7 @@ SlamKarto::mapLoop(double map_update_interval)
   {
     updateMap();
     publishGraphVisualization();
+    publishQueueVisualization();
     r.sleep();
   }
 }
