@@ -18,6 +18,7 @@ find_package(Boost REQUIRED COMPONENTS thread)
 find_package(Eigen REQUIRED)
 
 include_directories(
+  include
   ${Boost_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIRS}
@@ -27,6 +28,7 @@ add_definitions(${EIGEN_DEFINITIONS})
 catkin_package()
 
 add_executable(slam_karto
+  src/loop_closure_callback.cpp
   src/slam_karto.cpp
   src/spa_solver.cpp
 )

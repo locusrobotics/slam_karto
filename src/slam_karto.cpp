@@ -35,9 +35,12 @@
 #include "nav_msgs/MapMetaData.h"
 #include "sensor_msgs/LaserScan.h"
 #include "nav_msgs/GetMap.h"
+#include <std_msgs/Bool.h>
+#include <std_srvs/SetBool.h>
 
 #include "open_karto/Mapper.h"
 
+#include <slam_karto/loop_closure_callback.h>
 #include "spa_solver.h"
 
 #include <boost/thread.hpp>
@@ -57,6 +60,21 @@ class SlamKarto
     void laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan);
     bool mapCallback(nav_msgs::GetMap::Request  &req,
                      nav_msgs::GetMap::Response &res);
+
+    /**
+    * @brief Indicates if the system is (supposed to be) paused
+    */
+    bool isPaused() const { return is_paused_; }
+
+    /**
+    * @brief Send all of the pause navigation signals
+    */
+    void pauseNavigation();
+
+    /**
+    * @brief Send all of the resume navigation signals
+    */
+    void resumeNavigation();
 
   private:
     bool getOdomPose(karto::Pose2& karto_pose, const ros::Time& t);
@@ -112,6 +130,8 @@ class SlamKarto
     ros::Publisher marker_publisher_;
     ros::Publisher sstm_;
     ros::ServiceServer ss_;
+    ros::Publisher pause_publisher_;  //!< Topic that publishes requests to pause/unpause navigation
+    ros::ServiceClient pause_service_client_;  //!< Service client that requests to pause/unpause navigation
 
     // The map that will be published / send to service callers
     nav_msgs::GetMap::Response map_;
@@ -122,6 +142,7 @@ class SlamKarto
     std::string base_frame_;
     int throttle_scans_;
     double resolution_;
+    bool pause_on_loop_closure_;  //!< Issue pause/resume commands in response to loop closure events
     boost::mutex map_mutex_;
     boost::mutex map_to_odom_mutex_;
     boost::mutex mapper_mutex_;
@@ -130,6 +151,7 @@ class SlamKarto
     karto::Mapper* mapper_;
     karto::Dataset* dataset_;
     SpaSolver* solver_;
+    slam_karto::LoopClosureCallback* loop_closure_pauser_;  //!< Listen to loop closure events from karto and pause nav
     std::map<std::string, karto::LaserRangeFinder*> lasers_;
     std::map<std::string, bool> lasers_inverted_;
 
@@ -141,14 +163,18 @@ class SlamKarto
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
+    bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
 };
 
 SlamKarto::SlamKarto() :
+        pause_on_loop_closure_(false),
+        loop_closure_pauser_(NULL),
         got_map_(false),
         laser_count_(0),
         transform_thread_(NULL),
         map_thread_(NULL),
         marker_count_(0),
+        is_paused_(false),
         tf_(ros::Duration(60.0))
 {
   map_to_odom_.setIdentity();
@@ -171,6 +197,7 @@ SlamKarto::SlamKarto() :
     if(!private_nh_.getParam("delta", resolution_))
       resolution_ = 0.05;
   }
+  private_nh_.param("pause_on_loop_closure", pause_on_loop_closure_, false);
   double transform_publish_period;
   private_nh_.param("transform_publish_period", transform_publish_period, 0.05);
 
@@ -183,10 +210,21 @@ SlamKarto::SlamKarto() :
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
   marker_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("visualization_marker_array",1);
+  pause_publisher_ = node_.advertise<std_msgs::Bool>("pause_topic", 1, true);
+  pause_service_client_ = node_.serviceClient<std_srvs::SetBool>("pause_service", false);
 
   // Initialize Karto structures
   mapper_ = new karto::Mapper();
   dataset_ = new karto::Dataset();
+  if (pause_on_loop_closure_)
+  {
+    double min_loop_closure_duration;
+    private_nh_.param("min_loop_closure_duration", min_loop_closure_duration, 0.0);
+    loop_closure_pauser_ = new slam_karto::LoopClosureCallback(min_loop_closure_duration);
+    loop_closure_pauser_->RegisterBeginLoopClosureCallback(boost::bind(&SlamKarto::pauseNavigation, this));
+    loop_closure_pauser_->RegisterEndLoopClosureCallback(boost::bind(&SlamKarto::resumeNavigation, this));
+    mapper_->AddListener(loop_closure_pauser_);
+  }
 
   // Setting General Parameters from the Parameter Server
   bool use_scan_matching;
@@ -370,6 +408,8 @@ SlamKarto::~SlamKarto()
     delete iter->second;
   }
   lasers_.clear();
+  if (loop_closure_pauser_)
+    delete loop_closure_pauser_;
 }
 
 void
@@ -826,6 +866,58 @@ SlamKarto::mapCallback(nav_msgs::GetMap::Request  &req,
   }
   else
     return false;
+}
+
+void
+SlamKarto::pauseNavigation()
+{
+  // Publish a pause navigation message
+  if (pause_publisher_.getNumSubscribers() > 0)
+  {
+    ROS_DEBUG_STREAM("Publishing pause navigation message...");
+    std_msgs::Bool msg;
+    msg.data = true;
+    pause_publisher_.publish(msg);
+    is_paused_ = true;
+  }
+
+  // Call the pause navigation service
+  if (pause_service_client_.exists())
+  {
+    ROS_DEBUG_STREAM("Calling pause navigation service...");
+    std_srvs::SetBool srv;
+    srv.request.data = true;
+    if (pause_service_client_.call(srv) && srv.response.success)
+    {
+      is_paused_ = true;
+    }
+  }
+}
+
+void
+SlamKarto::resumeNavigation()
+{
+  // Publish a resume navigation message
+  if (pause_publisher_.getNumSubscribers() > 0)
+  {
+    ROS_DEBUG_STREAM("Publishing resume navigation message...");
+    std_msgs::Bool msg;
+    msg.data = false;
+    pause_publisher_.publish(msg);
+    is_paused_ = false;
+  }
+
+  // Call the resume navigation service
+  if (pause_service_client_.exists())
+  {
+    ROS_DEBUG_STREAM("Calling resume navigation service...");
+    std_srvs::SetBool srv;
+    srv.request.data = false;
+    if (pause_service_client_.call(srv) && srv.response.success)
+    {
+      is_paused_ = false;
+    }
+  }
 }
 
 int
