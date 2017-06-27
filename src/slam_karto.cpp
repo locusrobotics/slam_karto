@@ -563,31 +563,20 @@ SlamKarto::optimizationLoop()
 void
 SlamKarto::updateMapToOdomTransform(karto::LocalizedRangeScan* range_scan)
 {
-  karto::Pose2 corrected_pose = range_scan->GetCorrectedPose();
-  // Compute the map->odom transform
-  tf::Transform cor_pose_trans(
-    tf::createQuaternionFromRPY(0, 0, corrected_pose.GetHeading()),
-    tf::Vector3(corrected_pose.GetX(), corrected_pose.GetY(), 0.0));
-  tf::Stamped<tf::Pose> odom_to_map;
-  ros::Time transform_time(range_scan->GetTime());
-  if (!tf_.canTransform(odom_frame_, base_frame_, transform_time))
+  // Look up the odom->base transform
+  karto::Pose2 odom_to_base_pose = range_scan->GetOdometricPose();
+  tf::Transform odom_to_base_transform(
+    tf::createQuaternionFromRPY(0, 0, odom_to_base_pose.GetHeading()),
+    tf::Vector3(odom_to_base_pose.GetX(), odom_to_base_pose.GetY(), 0.0));
+  // Look up the map->base transform
+  karto::Pose2 map_to_base_pose = range_scan->GetCorrectedPose();
+  tf::Transform map_to_base_transform(
+    tf::createQuaternionFromRPY(0, 0, map_to_base_pose.GetHeading()),
+    tf::Vector3(map_to_base_pose.GetX(), map_to_base_pose.GetY(), 0.0));
+  // Compute the map->odom transform as map->base * base->odom
   {
-    transform_time = ros::Time(0);
-  }
-
-  try
-  {
-    tf_.transformPose(odom_frame_,
-      tf::Stamped<tf::Pose>(cor_pose_trans.inverse(), transform_time, base_frame_),
-      odom_to_map);
-
     boost::mutex::scoped_lock lock(map_to_odom_mutex_);
-    map_to_odom_ = tf::Transform(tf::Quaternion(odom_to_map.getRotation()),
-      tf::Point(odom_to_map.getOrigin())).inverse();
-  }
-  catch(tf::TransformException e)
-  {
-    ROS_ERROR("Transform from base_link to odom failed\n");
+    map_to_odom_ = map_to_base_transform * odom_to_base_transform.inverse();
   }
 }
 
