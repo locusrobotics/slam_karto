@@ -878,6 +878,7 @@ SlamKarto::pauseNavigation()
     std_msgs::Bool msg;
     msg.data = true;
     pause_publisher_.publish(msg);
+    is_paused_ = true;
   }
 
   // Call the pause navigation service
@@ -886,10 +887,11 @@ SlamKarto::pauseNavigation()
     ROS_DEBUG_STREAM("Calling pause navigation service...");
     std_srvs::SetBool srv;
     srv.request.data = true;
-    pause_service_client_.call(srv);
+    if (pause_service_client_.call(srv) && srv.response.success)
+    {
+      is_paused_ = true;
+    }
   }
-
-  is_paused_ = true;
 }
 
 void
@@ -902,6 +904,7 @@ SlamKarto::resumeNavigation()
     std_msgs::Bool msg;
     msg.data = false;
     pause_publisher_.publish(msg);
+    is_paused_ = false;
   }
 
   // Call the resume navigation service
@@ -910,10 +913,11 @@ SlamKarto::resumeNavigation()
     ROS_DEBUG_STREAM("Calling resume navigation service...");
     std_srvs::SetBool srv;
     srv.request.data = false;
-    pause_service_client_.call(srv);
+    if (pause_service_client_.call(srv) && srv.response.success)
+    {
+      is_paused_ = false;
+    }
   }
-
-    is_paused_ = false;
 }
 
 int
