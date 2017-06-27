@@ -874,7 +874,7 @@ SlamKarto::PauseNavigation()
   // Publish a pause navigation message
   if (pause_publisher_.getNumSubscribers() > 0)
   {
-    ROS_INFO_STREAM("Publishing pause navigation message...");
+    ROS_DEBUG_STREAM("Publishing pause navigation message...");
     std_msgs::Bool msg;
     msg.data = true;
     pause_publisher_.publish(msg);
@@ -883,7 +883,7 @@ SlamKarto::PauseNavigation()
   // Call the pause navigation service
   if (pause_service_client_.exists())
   {
-    ROS_INFO_STREAM("Calling pause navigation service...");
+    ROS_DEBUG_STREAM("Calling pause navigation service...");
     std_srvs::SetBool srv;
     srv.request.data = true;
     pause_service_client_.call(srv);
@@ -898,7 +898,7 @@ SlamKarto::ResumeNavigation()
   // Publish a pause navigation message
   if (pause_publisher_.getNumSubscribers() > 0)
   {
-    ROS_INFO_STREAM("Publishing resume navigation message...");
+    ROS_DEBUG_STREAM("Publishing resume navigation message...");
     std_msgs::Bool msg;
     msg.data = false;
     pause_publisher_.publish(msg);
@@ -907,7 +907,7 @@ SlamKarto::ResumeNavigation()
   // Call the pause navigation service
   if (pause_service_client_.exists())
   {
-    ROS_INFO_STREAM("Calling resume navigation service...");
+    ROS_DEBUG_STREAM("Calling resume navigation service...");
     std_srvs::SetBool srv;
     srv.request.data = false;
     pause_service_client_.call(srv);

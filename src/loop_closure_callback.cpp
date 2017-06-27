@@ -86,8 +86,6 @@ void LoopClosureCallback::EndLoopClosure(const std::string& rInfo)
   {
     loop_closure_duration_ = loop_closure_end_time - loop_closure_start_time_;
   }
-
-  ROS_INFO_STREAM("Loop closure processing time: " << loop_closure_duration_);
 }
 
 }  // namespace slam_karto
