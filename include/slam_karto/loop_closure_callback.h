@@ -39,40 +39,40 @@ public:
   virtual ~LoopClosureCallback();
 
   /**
-   * @brief Add a callback to be triggered whenever a loop closure starts
+   * @brief Add a callback to be triggered whenever the system starts checking for a loop closure.
    */
   void RegisterLoopClosureCheckCallback(Callback callback);
 
   /**
-   * @brief Add a callback to be triggered whenever a loop closure starts
+   * @brief Add a callback to be triggered whenever a "long" loop closure is starting.
    */
   void RegisterBeginLoopClosureCallback(Callback callback);
 
   /**
-   * @brief Add a callback to be triggered whenever a loop closure starts
+   * @brief Add a callback to be triggered whenever a "long" loop closure is completed.
    */
   void RegisterEndLoopClosureCallback(Callback callback);
 
   /**
-   * Triggers all registered callbacks whenever the system starts checking for a loop closure
+   * Triggers all registered callbacks whenever the system starts checking for a loop closure.
    */
-  virtual void LoopClosureCheck(const std::string& rInfo);
+  virtual void LoopClosureCheck(const std::string& info);
 
   /**
    * Triggers all registered callbacks when a "long" loop closure is starting.
    */
-  virtual void BeginLoopClosure(const std::string& rInfo);
+  virtual void BeginLoopClosure(const std::string& info);
 
   /**
    * Triggers all registered callbacks when a "long" loop closure is complete.
    */
-  virtual void EndLoopClosure(const std::string& rInfo);
+  virtual void EndLoopClosure(const std::string& info);
 
 protected:
   std::vector<Callback> check_callbacks_;  //!< Callbacks to trigger whenever the system checks for loop closures
-  std::vector<Callback> begin_callbacks_;  //!< Callbacks to trigger whenever the system starts a loop closures
-  std::vector<Callback> end_callbacks_;  //!< Callbacks to trigger whenever the system completes a loop closures
-  ros::WallDuration min_loop_closure_duration_;  //!< Only pause navigation is the last loop closure took this long
+  std::vector<Callback> begin_callbacks_;  //!< Callbacks to trigger whenever the system starts a loop closure
+  std::vector<Callback> end_callbacks_;  //!< Callbacks to trigger whenever the system completes a loop closure
+  ros::WallDuration min_loop_closure_duration_;  //!< Only pause navigation if the last loop closure took this long
   ros::WallTime loop_closure_start_time_;  //!< The timestamp of the last BeginLoopClosure signal
   ros::WallDuration loop_closure_duration_;  //!< The time required for the last loop closure to complete
   // Note: Use WallTime to handle the bagfile playback case. If the bagfiles are paused, then time does not advance and

@@ -64,17 +64,17 @@ class SlamKarto
     /**
     * @brief Indicates if the system is (supposed to be) paused
     */
-    bool IsPaused() const { return is_paused_; }
+    bool isPaused() const { return is_paused_; }
 
     /**
     * @brief Send all of the pause navigation signals
     */
-    void PauseNavigation();
+    void pauseNavigation();
 
     /**
     * @brief Send all of the resume navigation signals
     */
-    void ResumeNavigation();
+    void resumeNavigation();
 
   private:
     bool getOdomPose(karto::Pose2& karto_pose, const ros::Time& t);
@@ -219,10 +219,10 @@ SlamKarto::SlamKarto() :
   if (pause_on_loop_closure_)
   {
     double min_loop_closure_duration;
-    private_nh_.param("min_loop_closure_duration",  min_loop_closure_duration, 0.0);
+    private_nh_.param("min_loop_closure_duration", min_loop_closure_duration, 0.0);
     loop_closure_pauser_ = new slam_karto::LoopClosureCallback(min_loop_closure_duration);
-    loop_closure_pauser_->RegisterBeginLoopClosureCallback(boost::bind(&SlamKarto::PauseNavigation, this));
-    loop_closure_pauser_->RegisterEndLoopClosureCallback(boost::bind(&SlamKarto::ResumeNavigation, this));
+    loop_closure_pauser_->RegisterBeginLoopClosureCallback(boost::bind(&SlamKarto::pauseNavigation, this));
+    loop_closure_pauser_->RegisterEndLoopClosureCallback(boost::bind(&SlamKarto::resumeNavigation, this));
     mapper_->AddListener(loop_closure_pauser_);
   }
 
@@ -869,7 +869,7 @@ SlamKarto::mapCallback(nav_msgs::GetMap::Request  &req,
 }
 
 void
-SlamKarto::PauseNavigation()
+SlamKarto::pauseNavigation()
 {
   // Publish a pause navigation message
   if (pause_publisher_.getNumSubscribers() > 0)
@@ -893,9 +893,9 @@ SlamKarto::PauseNavigation()
 }
 
 void
-SlamKarto::ResumeNavigation()
+SlamKarto::resumeNavigation()
 {
-  // Publish a pause navigation message
+  // Publish a resume navigation message
   if (pause_publisher_.getNumSubscribers() > 0)
   {
     ROS_DEBUG_STREAM("Publishing resume navigation message...");
@@ -904,7 +904,7 @@ SlamKarto::ResumeNavigation()
     pause_publisher_.publish(msg);
   }
 
-  // Call the pause navigation service
+  // Call the resume navigation service
   if (pause_service_client_.exists())
   {
     ROS_DEBUG_STREAM("Calling resume navigation service...");

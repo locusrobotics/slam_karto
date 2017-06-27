@@ -43,16 +43,16 @@ void LoopClosureCallback::RegisterEndLoopClosureCallback(Callback callback)
   end_callbacks_.push_back(callback);
 }
 
-void LoopClosureCallback::LoopClosureCheck(const std::string& rInfo)
+void LoopClosureCallback::LoopClosureCheck(const std::string& info)
 {
   // Call all registered callbacks
   for (size_t i = 0; i < check_callbacks_.size(); ++i)
   {
-    check_callbacks_.at(i)(rInfo);
+    check_callbacks_.at(i)(info);
   }
 }
 
-void LoopClosureCallback::BeginLoopClosure(const std::string& rInfo)
+void LoopClosureCallback::BeginLoopClosure(const std::string& info)
 {
   // Store the timestamp of the loop closure start. Using WallTime to handle bagfile playback cases.
   loop_closure_start_time_ = ros::WallTime::now();
@@ -63,12 +63,12 @@ void LoopClosureCallback::BeginLoopClosure(const std::string& rInfo)
     // Call all registered callbacks
     for (size_t i = 0; i < begin_callbacks_.size(); ++i)
     {
-      begin_callbacks_.at(i)(rInfo);
+      begin_callbacks_.at(i)(info);
     }
   }
 }
 
-void LoopClosureCallback::EndLoopClosure(const std::string& rInfo)
+void LoopClosureCallback::EndLoopClosure(const std::string& info)
 {
   // Check if the last loop closure took long enough to trigger the callbacks
   if (loop_closure_duration_ >= min_loop_closure_duration_)
@@ -76,7 +76,7 @@ void LoopClosureCallback::EndLoopClosure(const std::string& rInfo)
     // Call all registered callbacks
     for (size_t i = 0; i < end_callbacks_.size(); ++i)
     {
-      end_callbacks_.at(i)(rInfo);
+      end_callbacks_.at(i)(info);
     }
   }
 
