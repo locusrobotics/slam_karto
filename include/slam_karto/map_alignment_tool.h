@@ -62,7 +62,7 @@ protected:
   /**
    * @brief Create an interactive marker message for the connector arrow between the two alignment tool endpoints
    *
-   * This leaves the two arrow endpoints at the default value, the origin. It is likely the two points[] will need
+   * This leaves the two arrow endpoints at the default value, the origin. It is likely the two points will need
    * to be updated after the marker is created.
    * @param  name The name to assign the interactive marker
    * @return      A populated interactive marker message

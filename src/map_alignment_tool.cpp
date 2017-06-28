@@ -5,8 +5,10 @@
  ***************************************************************************/
 
 #include <slam_karto/map_alignment_tool.h>
+
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf/transform_datatypes.h>
 
 #include <string>
 
@@ -32,7 +34,7 @@ MapAlignmentTool::MapAlignmentTool(const ros::NodeHandle& node_handle, const ros
   visualization_msgs::InteractiveMarker connector = createConnector(connector_name);
   // Set the default positions of the markers
   endpoint1.pose.position.x = -1.0;
-  endpoint2.pose.position.x = +1.0;
+  endpoint2.pose.position.x = 1.0;
   connector.controls.at(0).markers.at(0).points.at(0) = endpoint1.pose.position;
   connector.controls.at(0).markers.at(0).points.at(1) = endpoint2.pose.position;
   // Add the markers to the interactive marker server
@@ -115,9 +117,9 @@ void MapAlignmentTool::endpointCallback(const visualization_msgs::InteractiveMar
   // Query the two alignment handle markers from the marker server
   visualization_msgs::InteractiveMarker endpoint1;
   visualization_msgs::InteractiveMarker endpoint2;
-  if (feedback->event_type == visualization_msgs::InteractiveMarkerFeedback::POSE_UPDATE
-    && interactive_marker_server_.get(endpoint1_name, endpoint1)
-    && interactive_marker_server_.get(endpoint2_name, endpoint2))
+  if (feedback->event_type == visualization_msgs::InteractiveMarkerFeedback::POSE_UPDATE &&
+      interactive_marker_server_.get(endpoint1_name, endpoint1) &&
+      interactive_marker_server_.get(endpoint2_name, endpoint2))
   {
     // Update the arrow to connect the two alignment handles together
     visualization_msgs::InteractiveMarker connector = createConnector(connector_name);
@@ -135,8 +137,8 @@ void MapAlignmentTool::alignMapCallback(const visualization_msgs::InteractiveMar
   // Query the two alignment handle markers from the marker server
   visualization_msgs::InteractiveMarker endpoint1;
   visualization_msgs::InteractiveMarker endpoint2;
-  if (interactive_marker_server_.get(endpoint1_name, endpoint1)
-    && interactive_marker_server_.get(endpoint2_name, endpoint2))
+  if (interactive_marker_server_.get(endpoint1_name, endpoint1) &&
+      interactive_marker_server_.get(endpoint2_name, endpoint2))
   {
     // Compute yaw
     double yaw = std::atan2(endpoint2.pose.position.y - endpoint1.pose.position.y,
@@ -150,12 +152,8 @@ void MapAlignmentTool::alignMapCallback(const visualization_msgs::InteractiveMar
     aligned_to_map_transform.transform.translation.x = 0;
     aligned_to_map_transform.transform.translation.y = 0;
     aligned_to_map_transform.transform.translation.z = 0;
-    tf2::Quaternion q;
-    q.setRPY(0, 0, -yaw);  // send the opposite rotation so the map frame will end up in the requested orientation
-    aligned_to_map_transform.transform.rotation.x = q.x();
-    aligned_to_map_transform.transform.rotation.y = q.y();
-    aligned_to_map_transform.transform.rotation.z = q.z();
-    aligned_to_map_transform.transform.rotation.w = q.w();
+    // send the opposite rotation so the map frame will end up in the requested orientation
+    aligned_to_map_transform.transform.rotation = tf::createQuaternionMsgFromYaw(-yaw);
     static_broadcaster_.sendTransform(aligned_to_map_transform);
   }
 }
