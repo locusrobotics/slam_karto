@@ -173,6 +173,7 @@ class SlamKarto
     nav_msgs::GetMap::Response map_;
 
     // Storage for ROS parameters
+    std::string aligned_frame_;
     std::string odom_frame_;
     std::string map_frame_;
     std::string base_frame_;
@@ -235,6 +236,8 @@ SlamKarto::SlamKarto() :
   map_to_odom_.setIdentity();
   // Retrieve parameters
   ros::NodeHandle private_nh_("~");
+  if(!private_nh_.getParam("aligned_frame", aligned_frame_))
+    aligned_frame_ = "map_aligned";
   if(!private_nh_.getParam("odom_frame", odom_frame_))
     odom_frame_ = "odom";
   if(!private_nh_.getParam("map_frame", map_frame_))
@@ -282,7 +285,7 @@ SlamKarto::SlamKarto() :
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
-  marker_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("visualization_marker_array",1);
+  marker_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("visualization_marker_array", 1);
   pause_publisher_ = node_.advertise<std_msgs::Bool>("pause_topic", 1, true);
   pause_service_client_ = node_.serviceClient<std_srvs::SetBool>("pause_service", false);
 
@@ -920,8 +923,49 @@ SlamKarto::updateMap()
     scans = mapper_->GetAllProcessedScans();
   }
 
-  // Build the map
-  karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
+  // Build a map from the laserscans
+  // If the aligned->map frame is available, build the map in the aligned frame
+  // If not, build the map in the normal map frame
+  karto::OccupancyGrid* occ_grid;
+  std::string output_frame;
+  if (tf_.canTransform(map_frame_, aligned_frame_, ros::Time()))
+  {
+    // Lookup the map->aligned transform
+    tf::StampedTransform transform;
+    tf_.lookupTransform(aligned_frame_, map_frame_, ros::Time(), transform);
+    double yaw = tf::getYaw(transform.getRotation());
+
+    // Make a deep copy of all karto laserscans, transforming the corrected pose into the aligned frame
+    karto::LocalizedRangeScanVector transformed_scans;
+    transformed_scans.reserve(scans.size());
+    karto::Transform map_to_aligned_transform(karto::Pose2(0, 0, yaw));
+    for (size_t i = 0; i < scans.size(); ++i)
+    {
+      const karto::LocalizedRangeScan* pScan = scans.at(i);
+      karto::LocalizedRangeScan* transformed_scan = new karto::LocalizedRangeScan(
+        pScan->GetSensorName(), pScan->GetRangeReadingsVector());
+      transformed_scan->SetOdometricPose(pScan->GetOdometricPose());
+      transformed_scan->SetCorrectedPose(map_to_aligned_transform.TransformPose(pScan->GetCorrectedPose()));
+      transformed_scans.push_back(transformed_scan);
+    }
+
+    // Build the map in the aligned frame
+    output_frame = aligned_frame_;
+    occ_grid = karto::OccupancyGrid::CreateFromScans(transformed_scans, resolution_);
+
+    // Delete the transformed scans
+    for (size_t i = 0; i < transformed_scans.size(); ++i)
+    {
+      delete transformed_scans.at(i);
+    }
+    transformed_scans.clear();
+  }
+  else
+  {
+    // Build the map in the standard map frame
+    output_frame = map_frame_;
+    occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
+  }
 
   // Abort if no map was generated
   if (occ_grid == NULL)
@@ -935,7 +979,7 @@ SlamKarto::updateMap()
 
     // Set the header information
     map_.map.header.stamp = ros::Time::now();
-    map_.map.header.frame_id = map_frame_;
+    map_.map.header.frame_id = output_frame;
 
     // Translate to ROS format
     kt_int32s width = occ_grid->GetWidth();
