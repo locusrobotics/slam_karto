@@ -46,7 +46,7 @@ protected:
   tf2_ros::StaticTransformBroadcaster static_broadcaster_;  //!< Broadcasts the static aligned->map transform
   interactive_markers::InteractiveMarkerServer interactive_marker_server_;  //!< Server for interactive markers
   interactive_markers::MenuHandler menu_handler_;  //!< Interactive marker menu handler
-  std::string aligned_frame_;  //!< The name of the 'aligned' frame
+  std::string local_map_frame_;  //!< The name of the 'local map' frame
   std::string map_frame_;  //!< The name of the 'map' frame
 
   /**
