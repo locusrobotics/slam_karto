@@ -170,6 +170,7 @@ class SlamKarto
     ros::ServiceServer ss_;
     ros::Publisher pause_publisher_;  //!< Topic that publishes requests to pause/unpause navigation
     ros::ServiceClient pause_service_client_;  //!< Service client that requests to pause/unpause navigation
+    ros::WallTimer queue_visualization_timer_;  //!< Timer used to publish the scan queue length visualization
 
     // The map that will be published / send to service callers
     nav_msgs::GetMap::Response map_;
@@ -272,6 +273,8 @@ SlamKarto::SlamKarto() :
     if (scan_queue_length > 0)
     {
       scan_queue_.set_capacity(scan_queue_length);
+      queue_visualization_timer_ = private_nh_.createWallTimer(ros::WallDuration(1.0),
+        boost::bind(&SlamKarto::publishQueueVisualization, this));
     }
     else
     {
@@ -907,7 +910,6 @@ SlamKarto::mapLoop(double map_update_interval)
   {
     updateMap();
     publishGraphVisualization();
-    publishQueueVisualization();
     r.sleep();
   }
 }
