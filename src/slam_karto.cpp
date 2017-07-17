@@ -262,7 +262,7 @@ SlamKarto::SlamKarto() :
   private_nh_.param("pause_on_loop_closure", pause_on_loop_closure_, false);
   private_nh_.param("pause_on_full_queue", pause_on_full_queue_, false);
   private_nh_.param("pause_navigation_percentage", pause_navigation_percentage_, 0.90);
-  private_nh_.param("resume_navigation_percentage_", resume_navigation_percentage_, 0.10);
+  private_nh_.param("resume_navigation_percentage", resume_navigation_percentage_, 0.10);
   pause_navigation_percentage_ = boost::algorithm::clamp(pause_navigation_percentage_, 0.0, 1.0);
   resume_navigation_percentage_ = boost::algorithm::clamp(resume_navigation_percentage_,
     0.0, pause_navigation_percentage_);
