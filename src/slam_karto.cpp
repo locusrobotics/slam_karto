@@ -517,27 +517,30 @@ SlamKarto::optimizationLoop()
   // Continue processing as long as ROS is running
   while (ros::ok())
   {
-    // Wait for data to arrive. The while-loop guards against spurious wakeups.
-    boost::mutex::scoped_lock scan_queue_lock(scan_queue_mutex_);
-    while (ros::ok() && scan_queue_.empty())
+    // Wait for data to arrive.
+    karto::LocalizedRangeScan* range_scan;
     {
-      scan_queue_data_available_.wait(scan_queue_lock);
+      // The while-loop guards against spurious wakeups.
+      boost::mutex::scoped_lock scan_queue_lock(scan_queue_mutex_);
+      while (ros::ok() && scan_queue_.empty())
+      {
+        scan_queue_data_available_.wait(scan_queue_lock);
+      }
+      // Check if we are shutting down
+      if (!ros::ok())
+      {
+        return;
+      }
+      // The scan_queue_mutex is locked at this point.
+      // Resume navigation when the queue drops below the fill threshold
+      if (pause_on_full_queue_ && isPaused() && queueFillPercentage() < resume_navigation_percentage_)
+      {
+        resumeNavigation();
+      }
+      // Get the next laser scan off the queue and unlock so ROS can continue filling the buffer.
+      range_scan = scan_queue_.front();
+      scan_queue_.pop_front();
     }
-    // Check if we are shutting down
-    if (!ros::ok())
-    {
-      return;
-    }
-    // The scan_queue_mutex is locked at this point.
-    // Resume navigation when the queue drops below the fill threshold
-    if (pause_on_full_queue_ && isPaused() && queueFillPercentage() < resume_navigation_percentage_)
-    {
-      resumeNavigation();
-    }
-    // Get the next laser scan off the queue and unlock so ROS can continue filling the buffer.
-    karto::LocalizedRangeScan* range_scan = scan_queue_.front();
-    scan_queue_.pop_front();
-    scan_queue_lock.unlock();
     // But now we need to use the karto mapper. Acquire a lock for it before modifying the graph.
     bool processed = false;
     {
