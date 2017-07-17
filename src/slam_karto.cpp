@@ -31,6 +31,7 @@
 #include "tf/transform_listener.h"
 #include "tf/message_filter.h"
 #include "tf2_ros/static_transform_broadcaster.h"
+#include "visualization_msgs/Marker.h"
 #include "visualization_msgs/MarkerArray.h"
 
 #include "nav_msgs/MapMetaData.h"
@@ -165,7 +166,9 @@ class SlamKarto
     message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
     tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
     ros::Publisher sst_;
-    ros::Publisher marker_publisher_;
+    ros::Publisher slam_graph_visualization_publisher_;  //!< Visualization of the Karto SLAM graph
+    ros::Publisher scan_queue_visualization_publisher_;  //!< Visualization of the percent fill of the laserscan queue
+
     ros::Publisher sstm_;
     ros::ServiceServer ss_;
     ros::Publisher pause_publisher_;  //!< Topic that publishes requests to pause/unpause navigation
@@ -273,7 +276,7 @@ SlamKarto::SlamKarto() :
     if (scan_queue_length > 0)
     {
       scan_queue_.set_capacity(scan_queue_length);
-      queue_visualization_timer_ = private_nh_.createWallTimer(ros::WallDuration(1.0),
+      queue_visualization_timer_ = node_.createWallTimer(ros::WallDuration(1.0),
         boost::bind(&SlamKarto::publishQueueVisualization, this));
     }
     else
@@ -290,7 +293,8 @@ SlamKarto::SlamKarto() :
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
-  marker_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("visualization_marker_array", 1);
+  slam_graph_visualization_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("slam_graph", 1);
+  scan_queue_visualization_publisher_ = node_.advertise<visualization_msgs::Marker>("scan_queue", 1);
   pause_publisher_ = node_.advertise<std_msgs::Bool>("pause_topic", 1, true);
   pause_service_client_ = node_.serviceClient<std_srvs::SetBool>("pause_service", false);
 
@@ -714,7 +718,7 @@ void
 SlamKarto::publishGraphVisualization()
 {
   // Only compute the visualization marker if someone is listening
-  if (marker_publisher_.getNumSubscribers() > 0)
+  if (slam_graph_visualization_publisher_.getNumSubscribers() > 0)
   {
     // Copy the graph from the solver, limiting the time the solver
     // must be locked
@@ -795,7 +799,7 @@ SlamKarto::publishGraphVisualization()
     marray.markers.push_back(nodes);
     marray.markers.push_back(edges);
 
-    marker_publisher_.publish(marray);
+    slam_graph_visualization_publisher_.publish(marray);
   }
 }
 
@@ -803,7 +807,7 @@ void
 SlamKarto::publishQueueVisualization()
 {
   // Publish queue status
-  if (scan_queue_.capacity() > 1 && marker_publisher_.getNumSubscribers() > 0)
+  if (scan_queue_.capacity() > 1 && scan_queue_visualization_publisher_.getNumSubscribers() > 0)
   {
     visualization_msgs::Marker queue_size;
     queue_size.header.frame_id = base_frame_;
@@ -826,9 +830,7 @@ SlamKarto::publishQueueVisualization()
     queue_size.lifetime = ros::Duration(0.0);
     queue_size.frame_locked = true;
 
-    visualization_msgs::MarkerArray marray;
-    marray.markers.push_back(queue_size);
-    marker_publisher_.publish(marray);
+    scan_queue_visualization_publisher_.publish(queue_size);
   }
 }
 
