@@ -468,7 +468,7 @@ SlamKarto::~SlamKarto()
   // Notify the queue condition variable so it will wake up from its sleep
   scan_queue_data_available_.notify_all();
   // Shutdown all of the threads
-  if(transform_thread_)
+  if (transform_thread_)
   {
     transform_thread_->join();
     delete transform_thread_;
@@ -493,12 +493,6 @@ SlamKarto::~SlamKarto()
     delete mapper_;
   if (dataset_)
     delete dataset_;
-  for (std::map<std::string, karto::LaserRangeFinder*>::iterator iter = lasers_.begin();
-       iter != lasers_.end();
-       ++iter)
-  {
-    delete iter->second;
-  }
   lasers_.clear();
   if (loop_closure_pauser_)
     delete loop_closure_pauser_;
