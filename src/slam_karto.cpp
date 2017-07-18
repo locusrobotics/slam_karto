@@ -930,7 +930,7 @@ SlamKarto::updateMap()
   karto::Pose2 map_to_local_pose(0, 0, 0);
 
   // If the map->local_map frame transform does not exist, publish a static identity transform
-  if (tf_.canTransform(map_frame_, local_map_frame_, ros::Time()))
+  if (tf_.waitForTransform(map_frame_, local_map_frame_, ros::Time(), ros::Duration(0.10)))
   {
     // Lookup the map->local transform
     tf::StampedTransform transform;
