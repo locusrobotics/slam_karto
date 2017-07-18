@@ -22,11 +22,11 @@ static const std::string connector_name = "connector";
 MapAlignmentTool::MapAlignmentTool(const ros::NodeHandle& node_handle, const ros::NodeHandle& private_node_handle) :
   node_handle_(node_handle),
   interactive_marker_server_("map_alignment_tool"),
-  aligned_frame_("map_aligned"),
+  local_map_frame_("map_local"),
   map_frame_("map")
 {
   // Read the frame names from the parameter server
-  private_node_handle.getParam("aligned_frame", aligned_frame_);
+  private_node_handle.getParam("local_map_frame", local_map_frame_);
   private_node_handle.getParam("map_frame", map_frame_);
   // Create the map alignment visualization markers
   visualization_msgs::InteractiveMarker endpoint1 = createEndpoint(endpoint1_name);
@@ -56,7 +56,7 @@ visualization_msgs::InteractiveMarker MapAlignmentTool::createEndpoint(const std
 {
   // Create alignment markers
   visualization_msgs::InteractiveMarker endpoint;
-  endpoint.header.frame_id = map_frame_;
+  endpoint.header.frame_id = local_map_frame_;
   endpoint.name = name;
   endpoint.pose.position.x = 0;
   endpoint.pose.position.y = 0;
@@ -87,7 +87,7 @@ visualization_msgs::InteractiveMarker MapAlignmentTool::createEndpoint(const std
 visualization_msgs::InteractiveMarker MapAlignmentTool::createConnector(const std::string& name) const
 {
   visualization_msgs::InteractiveMarker connector;
-  connector.header.frame_id = map_frame_;
+  connector.header.frame_id = local_map_frame_;
   connector.name = name;
   connector.pose.position.x = 0;
   connector.pose.position.y = 0;
@@ -145,16 +145,16 @@ void MapAlignmentTool::alignMapCallback(const visualization_msgs::InteractiveMar
       endpoint2.pose.position.x - endpoint1.pose.position.x);
 
     // Publish aligned->map frame transformation
-    geometry_msgs::TransformStamped aligned_to_map_transform;
-    aligned_to_map_transform.header.stamp = ros::Time(0, 0);
-    aligned_to_map_transform.header.frame_id = aligned_frame_;
-    aligned_to_map_transform.child_frame_id = map_frame_;
-    aligned_to_map_transform.transform.translation.x = 0;
-    aligned_to_map_transform.transform.translation.y = 0;
-    aligned_to_map_transform.transform.translation.z = 0;
+    geometry_msgs::TransformStamped map_to_local_transform;
+    map_to_local_transform.header.stamp = ros::Time(0, 0);
+    map_to_local_transform.header.frame_id = map_frame_;
+    map_to_local_transform.child_frame_id = local_map_frame_;
+    map_to_local_transform.transform.translation.x = 0;
+    map_to_local_transform.transform.translation.y = 0;
+    map_to_local_transform.transform.translation.z = 0;
     // send the opposite rotation so the map frame will end up in the requested orientation
-    aligned_to_map_transform.transform.rotation = tf::createQuaternionMsgFromYaw(-yaw);
-    static_broadcaster_.sendTransform(aligned_to_map_transform);
+    map_to_local_transform.transform.rotation = tf::createQuaternionMsgFromYaw(-yaw);
+    static_broadcaster_.sendTransform(map_to_local_transform);
   }
 }
 
