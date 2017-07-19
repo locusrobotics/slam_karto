@@ -4,7 +4,9 @@ Changelog for package slam_karto
 
 0.7.3 (2016-02-04)
 ------------------
-* 0.7.3-3
+* 0.7.3-4 (2017-07-19)
+* Synchronizing indigo and kinetic version numbers
+* 0.7.3-3 (2017-07-19)
 * Modified the transform check to wait a bit for the transform to arrive. It's in a separate thread, so there is little downside to waiting.
 * Modified the visualization topic names
 * Moved the scan queue visualization publishing into its own timer callback
