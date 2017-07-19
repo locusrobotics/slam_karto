@@ -183,6 +183,7 @@ class SlamKarto
     std::string odom_frame_;
     std::string map_frame_;  //!< The map will be constructed and published in the map frame
     std::string base_frame_;
+    ros::Duration static_transform_wait_;  //!< The tf delay used in waitForTransform
     int throttle_scans_;
     double resolution_;
     bool pause_on_loop_closure_;  //!< Issue pause/resume commands in response to loop closure events
@@ -250,6 +251,9 @@ SlamKarto::SlamKarto() :
     map_frame_ = "map";
   if(!private_nh_.getParam("base_frame", base_frame_))
     base_frame_ = "base_link";
+  double static_transform_wait;
+  private_nh_.param("static_transform_wait", static_transform_wait, 0.10);
+  static_transform_wait_ = ros::Duration(static_transform_wait);
   if(!private_nh_.getParam("throttle_scans", throttle_scans_))
     throttle_scans_ = 1;
   double map_update_interval;
@@ -930,7 +934,7 @@ SlamKarto::updateMap()
   karto::Pose2 map_to_local_pose(0, 0, 0);
 
   // If the map->local_map frame transform does not exist, publish a static identity transform
-  if (tf_.waitForTransform(map_frame_, local_map_frame_, ros::Time(), ros::Duration(0.10)))
+  if (tf_.waitForTransform(map_frame_, local_map_frame_, ros::Time(), static_transform_wait_))
   {
     // Lookup the map->local transform
     tf::StampedTransform transform;
