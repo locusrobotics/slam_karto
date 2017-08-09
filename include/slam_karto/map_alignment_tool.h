@@ -10,7 +10,6 @@
 #include <interactive_markers/interactive_marker_server.h>
 #include <interactive_markers/menu_handler.h>
 #include <ros/ros.h>
-#include <tf2_ros/static_transform_broadcaster.h>
 
 #include <string>
 
@@ -43,11 +42,11 @@ public:
 
 protected:
   ros::NodeHandle node_handle_;  //!< Node handle for this node
-  tf2_ros::StaticTransformBroadcaster static_broadcaster_;  //!< Broadcasts the static aligned->map transform
+  ros::Publisher map_rotation_publisher_;  //!< Publish the desired map rotation angle
   interactive_markers::InteractiveMarkerServer interactive_marker_server_;  //!< Server for interactive markers
   interactive_markers::MenuHandler menu_handler_;  //!< Interactive marker menu handler
-  std::string local_map_frame_;  //!< The name of the 'local map' frame
   std::string map_frame_;  //!< The name of the 'map' frame
+  std::string local_map_frame_;  //!< The name of the 'local map' frame
 
   /**
    * @brief Create an interactive marker message for one of the two alignment tool endpoints
