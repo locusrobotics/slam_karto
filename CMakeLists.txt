@@ -14,6 +14,7 @@ find_package(catkin REQUIRED
     sensor_msgs
     sparse_bundle_adjustment
     std_msgs
+    std_srvs
     tf
     tf2
     tf2_ros
