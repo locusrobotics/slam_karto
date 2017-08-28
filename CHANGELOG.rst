@@ -2,6 +2,11 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.8.0 (2017-08-28)
+-----------
+* switching to standard locus release process, bumping minor version.
+* Contributors: Stephen Williams
+
 0.7.3 (2016-02-04)
 ------------------
 * 0.7.3-5 (2017-08-28)
