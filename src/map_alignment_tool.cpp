@@ -7,6 +7,7 @@
 #include <slam_karto/map_alignment_tool.h>
 
 #include <geometry_msgs/TransformStamped.h>
+#include <std_msgs/Float64.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf/transform_datatypes.h>
 
@@ -22,12 +23,14 @@ static const std::string connector_name = "connector";
 MapAlignmentTool::MapAlignmentTool(const ros::NodeHandle& node_handle, const ros::NodeHandle& private_node_handle) :
   node_handle_(node_handle),
   interactive_marker_server_("map_alignment_tool"),
-  local_map_frame_("map_local"),
-  map_frame_("map")
+  map_frame_("map"),
+  local_map_frame_("map_local")
 {
   // Read the frame names from the parameter server
-  private_node_handle.getParam("local_map_frame", local_map_frame_);
   private_node_handle.getParam("map_frame", map_frame_);
+  private_node_handle.getParam("local_map_frame", local_map_frame_);
+  // Create the map rotation publisher
+  map_rotation_publisher_ = node_handle_.advertise<std_msgs::Float64>("map_rotation", 1, true);
   // Create the map alignment visualization markers
   visualization_msgs::InteractiveMarker endpoint1 = createEndpoint(endpoint1_name);
   visualization_msgs::InteractiveMarker endpoint2 = createEndpoint(endpoint2_name);
@@ -143,18 +146,10 @@ void MapAlignmentTool::alignMapCallback(const visualization_msgs::InteractiveMar
     // Compute yaw
     double yaw = std::atan2(endpoint2.pose.position.y - endpoint1.pose.position.y,
       endpoint2.pose.position.x - endpoint1.pose.position.x);
-
-    // Publish aligned->map frame transformation
-    geometry_msgs::TransformStamped map_to_local_transform;
-    map_to_local_transform.header.stamp = ros::Time(0, 0);
-    map_to_local_transform.header.frame_id = map_frame_;
-    map_to_local_transform.child_frame_id = local_map_frame_;
-    map_to_local_transform.transform.translation.x = 0;
-    map_to_local_transform.transform.translation.y = 0;
-    map_to_local_transform.transform.translation.z = 0;
     // send the opposite rotation so the map frame will end up in the requested orientation
-    map_to_local_transform.transform.rotation = tf::createQuaternionMsgFromYaw(-yaw);
-    static_broadcaster_.sendTransform(map_to_local_transform);
+    std_msgs::Float64 msg;
+    msg.data = -yaw;
+    map_rotation_publisher_.publish(msg);
   }
 }
 
