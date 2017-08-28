@@ -4,6 +4,9 @@ Changelog for package slam_karto
 
 0.7.3 (2016-02-04)
 ------------------
+* 0.7.3-5 (2017-08-28)
+* Modified slam_karto to subscribe to a map rotation angle topic instead of using the tf transform.
+* Modified the map alignment tool to publish the rotation angle as a topic instead of directly publishing the transform.
 * 0.7.3-4 (2017-07-19)
 * Synchronizing indigo and kinetic version numbers
 * 0.7.3-3 (2017-07-19)
