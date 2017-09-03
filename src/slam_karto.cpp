@@ -327,7 +327,7 @@ SlamKarto::SlamKarto() :
   bool use_scan_matching;
   if(private_nh_.getParam("use_scan_matching", use_scan_matching))
     mapper_->setParamUseScanMatching(use_scan_matching);
-  
+
   bool use_scan_barycenter;
   if(private_nh_.getParam("use_scan_barycenter", use_scan_barycenter))
     mapper_->setParamUseScanBarycenter(use_scan_barycenter);
@@ -678,7 +678,7 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     // Create a laser range finder device and copy in data from the first
     // scan
     std::string name = scan->header.frame_id;
-    karto::LaserRangeFinder* laser = 
+    karto::LaserRangeFinder* laser =
       karto::LaserRangeFinder::CreateLaserRangeFinder(karto::LaserRangeFinder_Custom, karto::Name(name));
     laser->SetOffsetPose(karto::Pose2(laser_pose.getOrigin().x(),
 				      laser_pose.getOrigin().y(),
@@ -719,7 +719,7 @@ SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
   }
   double yaw = tf::getYaw(odom_pose.getRotation());
 
-  karto_pose = 
+  karto_pose =
           karto::Pose2(odom_pose.getOrigin().x(),
                        odom_pose.getOrigin().y(),
                        yaw);
@@ -878,7 +878,7 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
   {
     // Print the debug info
     karto::Pose2 odom_pose = range_scan->GetOdometricPose();
-    ROS_DEBUG("added scan at pose: %.3f %.3f %.3f", 
+    ROS_DEBUG("added scan at pose: %.3f %.3f %.3f",
               odom_pose.GetX(),
               odom_pose.GetY(),
               odom_pose.GetHeading());
@@ -985,7 +985,7 @@ SlamKarto::updateMap()
   if (occ_grid == NULL)
   {
     return false;
-  } 
+  }
 
   // Update the map_ member variable with the newly generated map
   {
@@ -995,18 +995,21 @@ SlamKarto::updateMap()
     map_.map.header.stamp = ros::Time::now();
     map_.map.header.frame_id = map_frame_;
 
-    // Translate to ROS format
+    // Reallocate memory if the map changes size
     kt_int32s width = occ_grid->GetWidth();
     kt_int32s height = occ_grid->GetHeight();
-
-    // Reallocate memory if the map changes size
     if (map_.map.info.width != (unsigned int) width ||
         map_.map.info.height != (unsigned int) height)
     {
-      map_.map.info.width = width;
-      map_.map.info.height = height;
-      map_.map.data.resize(map_.map.info.width * map_.map.info.height);
+      map_.map.data.resize(width * height);
     }
+
+    // Translate to ROS format
+    karto::Vector2<kt_double> offset = occ_grid->GetCoordinateConverter()->GetOffset();
+    map_.map.info.origin.position.x = offset.GetX();
+    map_.map.info.origin.position.y = offset.GetY();
+    map_.map.info.width = width;
+    map_.map.info.height = height;
 
     for (kt_int32s y = 0; y < height; y++)
     {
@@ -1040,8 +1043,8 @@ SlamKarto::updateMap()
   map_to_local_transform.header.frame_id = map_frame_;
   map_to_local_transform.child_frame_id = local_map_frame_;
   karto::Vector2<kt_double> offset = occ_grid->GetCoordinateConverter()->GetOffset();
-  map_to_local_transform.transform.translation.x = -offset.GetX();
-  map_to_local_transform.transform.translation.y = -offset.GetY();
+  map_to_local_transform.transform.translation.x = 0;
+  map_to_local_transform.transform.translation.y = 0;
   map_to_local_transform.transform.translation.z = 0;
   map_to_local_transform.transform.rotation = tf::createQuaternionMsgFromYaw(map_to_local_rotation_);
 
@@ -1097,7 +1100,7 @@ SlamKarto::convertScan(karto::LaserRangeFinder* laser,
   karto::Pose2 karto_pose;
   if (!getOdomPose(karto_pose, scan->header.stamp))
      return NULL;
-  
+
   // Create a vector of doubles for karto
   std::vector<kt_double> readings;
 
@@ -1116,9 +1119,9 @@ SlamKarto::convertScan(karto::LaserRangeFinder* laser,
       readings.push_back(*it);
     }
   }
-  
+
   // create localized range scan
-  karto::LocalizedRangeScan* range_scan = 
+  karto::LocalizedRangeScan* range_scan =
     new karto::LocalizedRangeScan(laser->GetName(), readings);
   range_scan->SetTime(scan->header.stamp.toSec());
   range_scan->SetOdometricPose(karto_pose);
@@ -1127,7 +1130,7 @@ SlamKarto::convertScan(karto::LaserRangeFinder* laser,
   return range_scan;
 }
 
-bool 
+bool
 SlamKarto::mapCallback(nav_msgs::GetMap::Request  &req,
                        nav_msgs::GetMap::Response &res)
 {
