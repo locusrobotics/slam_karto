@@ -2,8 +2,13 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.8.1 (2017-09-05)
+------------------
+* Reverted the automatic map origin translation. The constantly moving origin does not play well with move_base.
+* Contributors: Stephen Williams
+
 0.8.0 (2017-08-28)
------------
+------------------
 * switching to standard locus release process, bumping minor version.
 * Contributors: Stephen Williams
 
