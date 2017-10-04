@@ -2,6 +2,11 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.9.0 (2017-10-04)
+------------------
+* Added missing conversion from degree to radians
+* Contributors: Stephen Williams
+
 0.8.1 (2017-09-05)
 ------------------
 * Reverted the automatic map origin translation. The constantly moving origin does not play well with move_base.
