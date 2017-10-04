@@ -1078,7 +1078,7 @@ bool SlamKarto::hasMovedEnough(const karto::LocalizedRangeScan* scan)
 
   // Check rotation
   double delta_heading = karto::math::NormalizeAngle(current_laser_pose.GetHeading() - last_scan_pose_.GetHeading());
-  if (std::fabs(delta_heading) >= mapper_->getParamMinimumTravelHeading())
+  if (std::fabs(delta_heading) >= karto::math::DegreesToRadians(mapper_->getParamMinimumTravelHeading()))
   {
     return true;
   }
