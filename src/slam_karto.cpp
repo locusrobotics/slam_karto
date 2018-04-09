@@ -37,6 +37,10 @@
 #include "nav_msgs/MapMetaData.h"
 #include "sensor_msgs/LaserScan.h"
 #include "nav_msgs/GetMap.h"
+#include <nav_msgs/Path.h>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
 #include <std_srvs/SetBool.h>
@@ -177,6 +181,7 @@ class SlamKarto
     ros::Publisher sst_;
     ros::Publisher slam_graph_visualization_publisher_;  //!< Visualization of the Karto SLAM graph
     ros::Publisher scan_queue_visualization_publisher_;  //!< Visualization of the percent fill of the laserscan queue
+    ros::Publisher path_publisher_;  //!< Publish the entire optimized path
 
     ros::Publisher sstm_;
     ros::ServiceServer ss_;
@@ -299,6 +304,7 @@ SlamKarto::SlamKarto() :
   tfB_ = new tf::TransformBroadcaster();
   sst_ = node_.advertise<nav_msgs::OccupancyGrid>("map", 1, true);
   sstm_ = node_.advertise<nav_msgs::MapMetaData>("map_metadata", 1, true);
+  path_publisher_ = node_.advertise<nav_msgs::Path>("path", 1, true);
   ss_ = node_.advertiseService("dynamic_map", &SlamKarto::mapCallback, this);
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
@@ -1048,6 +1054,23 @@ SlamKarto::updateMap()
   map_to_local_transform.transform.translation.z = 0;
   map_to_local_transform.transform.rotation = tf::createQuaternionMsgFromYaw(map_to_local_rotation_);
 
+  // Create the path message
+  nav_msgs::Path path_msg;
+  path_msg.header.stamp = ros::Time::now();
+  path_msg.header.frame_id = local_map_frame_;
+  for (size_t i = 0; i < scans.size(); ++i)
+  {
+    const karto::Pose2& pose_2d = scans[i]->GetCorrectedPose();
+    geometry_msgs::PoseStamped pose_3d;
+    pose_3d.header.stamp.fromSec(scans[i]->GetTime());
+    pose_3d.header.frame_id = local_map_frame_;
+    pose_3d.pose.position.x = pose_2d.GetX();
+    pose_3d.pose.position.y = pose_2d.GetY();
+    pose_3d.pose.position.z = 0.0;
+    pose_3d.pose.orientation = tf::createQuaternionMsgFromYaw(pose_2d.GetHeading());
+    path_msg.poses.push_back(pose_3d);
+  }
+
   // Delete the temporary Karto map object
   delete occ_grid;
 
@@ -1057,6 +1080,9 @@ SlamKarto::updateMap()
 
   // Publish the map->local transform
   static_broadcaster_.sendTransform(map_to_local_transform);
+
+  // Publish the path
+  path_publisher_.publish(path_msg);
 
   // A new map was generated
   got_map_ = true;
