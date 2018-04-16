@@ -2,6 +2,11 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.10.0 (2018-04-16)
+-------------------
+* Publish the optimized trajectory as a nav_msgs::Path (`#15 <https://github.com/locusrobotics/slam_karto/issues/15>`_)
+* Contributors: Stephen Williams
+
 0.9.0 (2017-10-04)
 ------------------
 * Added missing conversion from degree to radians
