@@ -947,45 +947,37 @@ SlamKarto::updateMap()
   karto::LocalizedRangeScanVector scans;
   {
     boost::mutex::scoped_lock lock(mapper_mutex_);
-    scans = mapper_->GetAllProcessedScans();
+    karto::LocalizedRangeScanVector source_scans = mapper_->GetAllProcessedScans();
+    scans.reserve(source_scans.size());
+    for (size_t i = 0; i < source_scans.size(); ++i)
+    {
+      const karto::LocalizedRangeScan* source_scan = source_scans.at(i);
+      karto::LocalizedRangeScan* scan = new karto::LocalizedRangeScan(
+          source_scan->GetSensorName(), source_scan->GetRangeReadingsVector());
+      scan->SetOdometricPose(source_scan->GetOdometricPose());
+      scan->SetCorrectedPose(source_scan->GetCorrectedPose());
+      scans.push_back(scan);
+    }
   }
-
-  // Build a map from the laserscans
-  // If the map->local rotation is zero, just build the map
-  // If the map->local rotation is non-zero, copy the scans and transform them before building the map
-  karto::OccupancyGrid* occ_grid;
-  if (map_to_local_rotation_ == 0)
+  // If the map->local rotation is non-zero, transform the scans before building the map
+  if (map_to_local_rotation_ != 0)
   {
-    // The map->local frame is identity. Just build the map.
-    occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
-  }
-  else
-  {
-    // Define the map->local transform to apply to the karto laserscans
     karto::Pose2 map_to_local_pose(0, 0, map_to_local_rotation_);
     karto::Transform map_to_local_transform(map_to_local_pose);
-    // Make a deep copy of all karto laserscans, transforming the corrected pose into the map frame
-    karto::LocalizedRangeScanVector transformed_scans;
-    transformed_scans.reserve(scans.size());
-    // Transform all of the scans
     for (size_t i = 0; i < scans.size(); ++i)
     {
-      const karto::LocalizedRangeScan* pScan = scans.at(i);
-      karto::LocalizedRangeScan* transformed_scan = new karto::LocalizedRangeScan(
-        pScan->GetSensorName(), pScan->GetRangeReadingsVector());
-      transformed_scan->SetOdometricPose(pScan->GetOdometricPose());
-      transformed_scan->SetCorrectedPose(map_to_local_transform.TransformPose(pScan->GetCorrectedPose()));
-      transformed_scans.push_back(transformed_scan);
+      karto::LocalizedRangeScan* scan = scans.at(i);
+      scan->SetCorrectedPose(map_to_local_transform.TransformPose(scan->GetCorrectedPose()));
     }
-    // Build the map from the transformed scans
-    occ_grid = karto::OccupancyGrid::CreateFromScans(transformed_scans, resolution_);
-    // Delete the transformed scans
-    for (size_t i = 0; i < transformed_scans.size(); ++i)
-    {
-      delete transformed_scans.at(i);
-    }
-    transformed_scans.clear();
   }
+  // Build a map from the laserscans
+  karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
+  // Delete the transformed scans
+  for (size_t i = 0; i < scans.size(); ++i)
+  {
+    delete scans.at(i);
+  }
+  scans.clear();
 
   // Abort if no map was generated
   if (occ_grid == NULL)
@@ -1041,14 +1033,17 @@ SlamKarto::updateMap()
         }
       }
     }
+    got_map_ = true;
   }
+
+  // Delete the temporary Karto map object
+  delete occ_grid;
 
   // Create the a map -> local transform that places the map origin at (0,0)
   geometry_msgs::TransformStamped map_to_local_transform;
   map_to_local_transform.header.stamp = ros::Time(0, 0);
   map_to_local_transform.header.frame_id = map_frame_;
   map_to_local_transform.child_frame_id = local_map_frame_;
-  karto::Vector2<kt_double> offset = occ_grid->GetCoordinateConverter()->GetOffset();
   map_to_local_transform.transform.translation.x = 0;
   map_to_local_transform.transform.translation.y = 0;
   map_to_local_transform.transform.translation.z = 0;
@@ -1071,9 +1066,6 @@ SlamKarto::updateMap()
     path_msg.poses.push_back(pose_3d);
   }
 
-  // Delete the temporary Karto map object
-  delete occ_grid;
-
   // Publish the map
   sst_.publish(map_.map);
   sstm_.publish(map_.map.info);
@@ -1085,7 +1077,6 @@ SlamKarto::updateMap()
   path_publisher_.publish(path_msg);
 
   // A new map was generated
-  got_map_ = true;
   ROS_DEBUG("Updated the map");
 
   return true;
