@@ -2,8 +2,8 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.11.0 (2018-07-05)
+-------------------
 * Fixed threading issue by making a deep copy of all scans (`#16 <https://github.com/locusrobotics/slam_karto/issues/16>`_)
 * Contributors: Stephen Williams
 
