@@ -2,6 +2,11 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Fixed threading issue by making a deep copy of all scans (`#16 <https://github.com/locusrobotics/slam_karto/issues/16>`_)
+* Contributors: Stephen Williams
+
 0.10.0 (2018-04-16)
 -------------------
 * Publish the optimized trajectory as a nav_msgs::Path (`#15 <https://github.com/locusrobotics/slam_karto/issues/15>`_)
