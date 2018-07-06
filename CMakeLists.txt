@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(slam_karto)
 
-set(CMAKE_CXX_STANDARD 98)
-
 find_package(catkin REQUIRED
   COMPONENTS
     cmake_modules
