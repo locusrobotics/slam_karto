@@ -25,6 +25,9 @@ find_package(catkin REQUIRED
 find_package(Boost REQUIRED COMPONENTS thread)
 find_package(Eigen REQUIRED)
 
+set(CMAKE_CXX_STANDARD 14)
+add_compile_options(-Wall -Werror)
+
 include_directories(
   include
   ${Boost_INCLUDE_DIRS}
