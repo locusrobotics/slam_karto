@@ -239,6 +239,7 @@ class SlamKarto
 };
 
 SlamKarto::SlamKarto() :
+        tf_(ros::Duration(60.0)),
         pause_on_loop_closure_(false),
         loop_closure_pauser_(NULL),
         got_map_(false),
