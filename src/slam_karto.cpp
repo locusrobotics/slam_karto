@@ -956,6 +956,7 @@ SlamKarto::updateMap()
           source_scan->GetSensorName(), source_scan->GetRangeReadingsVector());
       scan->SetOdometricPose(source_scan->GetOdometricPose());
       scan->SetCorrectedPose(source_scan->GetCorrectedPose());
+      scan->SetTime(source_scan->GetTime());
       scans.push_back(scan);
     }
   }
@@ -972,6 +973,24 @@ SlamKarto::updateMap()
   }
   // Build a map from the laserscans
   karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
+
+  // Create the path message
+  nav_msgs::Path path_msg;
+  path_msg.header.stamp = ros::Time::now();
+  path_msg.header.frame_id = local_map_frame_;
+  for (size_t i = 0; i < scans.size(); ++i)
+  {
+    const karto::Pose2& pose_2d = scans[i]->GetCorrectedPose();
+    geometry_msgs::PoseStamped pose_3d;
+    pose_3d.header.stamp.fromSec(scans[i]->GetTime());
+    pose_3d.header.frame_id = local_map_frame_;
+    pose_3d.pose.position.x = pose_2d.GetX();
+    pose_3d.pose.position.y = pose_2d.GetY();
+    pose_3d.pose.position.z = 0.0;
+    pose_3d.pose.orientation = tf::createQuaternionMsgFromYaw(pose_2d.GetHeading());
+    path_msg.poses.push_back(pose_3d);
+  }
+
   // Delete the transformed scans
   for (size_t i = 0; i < scans.size(); ++i)
   {
@@ -1048,23 +1067,6 @@ SlamKarto::updateMap()
   map_to_local_transform.transform.translation.y = 0;
   map_to_local_transform.transform.translation.z = 0;
   map_to_local_transform.transform.rotation = tf::createQuaternionMsgFromYaw(map_to_local_rotation_);
-
-  // Create the path message
-  nav_msgs::Path path_msg;
-  path_msg.header.stamp = ros::Time::now();
-  path_msg.header.frame_id = local_map_frame_;
-  for (size_t i = 0; i < scans.size(); ++i)
-  {
-    const karto::Pose2& pose_2d = scans[i]->GetCorrectedPose();
-    geometry_msgs::PoseStamped pose_3d;
-    pose_3d.header.stamp.fromSec(scans[i]->GetTime());
-    pose_3d.header.frame_id = local_map_frame_;
-    pose_3d.pose.position.x = pose_2d.GetX();
-    pose_3d.pose.position.y = pose_2d.GetY();
-    pose_3d.pose.position.z = 0.0;
-    pose_3d.pose.orientation = tf::createQuaternionMsgFromYaw(pose_2d.GetHeading());
-    path_msg.poses.push_back(pose_3d);
-  }
 
   // Publish the map
   sst_.publish(map_.map);
