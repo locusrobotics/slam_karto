@@ -2,6 +2,12 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* [RST-1095] fix trajectory export (`#18 <https://github.com/locusrobotics/slam_karto/issues/18>`_)
+* Build in C++98
+* Contributors: Paul Bovbel, Stephen Williams
+
 0.11.0 (2018-07-05)
 -------------------
 * Fixed threading issue by making a deep copy of all scans (`#16 <https://github.com/locusrobotics/slam_karto/issues/16>`_)
