@@ -2,8 +2,8 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.11.1 (2018-07-10)
+-------------------
 * [RST-1095] fix trajectory export (`#18 <https://github.com/locusrobotics/slam_karto/issues/18>`_)
 * Build in C++98
 * Contributors: Paul Bovbel, Stephen Williams
