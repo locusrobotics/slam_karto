@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(slam_karto)
 
-set(CMAKE_CXX_STANDARD 98)
-
 find_package(catkin REQUIRED
   COMPONENTS
     cmake_modules
@@ -24,6 +22,9 @@ find_package(catkin REQUIRED
 )
 find_package(Boost REQUIRED COMPONENTS thread)
 find_package(Eigen REQUIRED)
+
+set(CMAKE_CXX_STANDARD 14)
+add_compile_options(-Wall)
 
 include_directories(
   include

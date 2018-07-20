@@ -239,6 +239,7 @@ class SlamKarto
 };
 
 SlamKarto::SlamKarto() :
+        tf_(ros::Duration(60.0)),
         pause_on_loop_closure_(false),
         loop_closure_pauser_(NULL),
         got_map_(false),
@@ -248,11 +249,10 @@ SlamKarto::SlamKarto() :
         optimization_thread_(NULL),
         marker_count_(0),
         is_paused_(false),
-        tf_(ros::Duration(60.0)),
-        scan_queue_(1),
         first_scan_received_(false),
         last_scan_time_(0.0),
-        last_scan_pose_(0, 0, 0)
+        last_scan_pose_(0, 0, 0),
+        scan_queue_(1)
 {
   map_to_odom_.setIdentity();
   // Retrieve parameters
