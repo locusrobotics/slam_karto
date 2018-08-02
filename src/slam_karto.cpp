@@ -960,21 +960,9 @@ SlamKarto::updateMap()
       scans.push_back(scan);
     }
   }
-  // If the map->local rotation is non-zero, transform the scans before building the map
-  if (map_to_local_rotation_ != 0)
-  {
-    karto::Pose2 map_to_local_pose(0, 0, map_to_local_rotation_);
-    karto::Transform map_to_local_transform(map_to_local_pose);
-    for (size_t i = 0; i < scans.size(); ++i)
-    {
-      karto::LocalizedRangeScan* scan = scans.at(i);
-      scan->SetCorrectedPose(map_to_local_transform.TransformPose(scan->GetCorrectedPose()));
-    }
-  }
-  // Build a map from the laserscans
-  karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
 
-  // Create the path message
+  // Create the path message. The path message is published in the "local_map" frame so that it can be displayed in
+  // RViz. Thus, we create it from the raw scans before transforming them into the "map" frame.
   nav_msgs::Path path_msg;
   path_msg.header.stamp = ros::Time::now();
   path_msg.header.frame_id = local_map_frame_;
@@ -991,7 +979,21 @@ SlamKarto::updateMap()
     path_msg.poses.push_back(pose_3d);
   }
 
-  // Delete the transformed scans
+  // If the map->local rotation is non-zero, transform the scans before building the map
+  if (map_to_local_rotation_ != 0)
+  {
+    karto::Pose2 map_to_local_pose(0, 0, map_to_local_rotation_);
+    karto::Transform map_to_local_transform(map_to_local_pose);
+    for (size_t i = 0; i < scans.size(); ++i)
+    {
+      karto::LocalizedRangeScan* scan = scans.at(i);
+      scan->SetCorrectedPose(map_to_local_transform.TransformPose(scan->GetCorrectedPose()));
+    }
+  }
+  // Build a map from the laserscans
+  karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
+  
+  // Delete the copied scans
   for (size_t i = 0; i < scans.size(); ++i)
   {
     delete scans.at(i);
