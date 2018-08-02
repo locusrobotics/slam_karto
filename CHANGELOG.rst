@@ -2,6 +2,15 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Create the robot path message from poses in the correct frame (`#19 <https://github.com/locusrobotics/slam_karto/issues/19>`_)
+* Added tf initialization back in
+* Disable Werror
+* Removed CXX standard 98 line
+* Fixed issues until it compiled with c++14 flag
+* Contributors: Paul Bovbel, Stephen Williams
+
 0.11.1 (2018-07-10)
 -------------------
 * [RST-1095] fix trajectory export (`#18 <https://github.com/locusrobotics/slam_karto/issues/18>`_)
