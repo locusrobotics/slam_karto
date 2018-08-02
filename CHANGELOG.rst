@@ -2,8 +2,8 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.12.0 (2018-08-02)
+-------------------
 * Create the robot path message from poses in the correct frame (`#19 <https://github.com/locusrobotics/slam_karto/issues/19>`_)
 * Added tf initialization back in
 * Disable Werror
