@@ -2,6 +2,11 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Create the robot path message from poses in the correct frame (`#19 <https://github.com/locusrobotics/slam_karto/issues/19>`_)
+* Contributors: Stephen Williams
+
 0.11.1 (2018-07-10)
 -------------------
 * [RST-1095] fix trajectory export (`#18 <https://github.com/locusrobotics/slam_karto/issues/18>`_)
