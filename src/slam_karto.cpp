@@ -905,6 +905,10 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     // Notify the optimization thread that data is available
     scan_queue_data_available_.notify_one();
   }
+  else
+  {
+    delete range_scan;
+  }
 }
 
 void
