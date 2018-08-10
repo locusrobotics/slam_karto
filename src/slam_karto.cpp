@@ -905,6 +905,10 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     // Notify the optimization thread that data is available
     scan_queue_data_available_.notify_one();
   }
+  else
+  {
+    delete range_scan;
+  }
 }
 
 void
@@ -992,7 +996,7 @@ SlamKarto::updateMap()
   }
   // Build a map from the laserscans
   karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
-  
+
   // Delete the copied scans
   for (size_t i = 0; i < scans.size(); ++i)
   {
