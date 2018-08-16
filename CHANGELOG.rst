@@ -2,8 +2,8 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.11.3 (2018-08-16)
+-------------------
 * Delete the scans you aren't using (`#20 <https://github.com/locusrobotics/slam_karto/issues/20>`_)
 * Contributors: Stephen Williams
 
