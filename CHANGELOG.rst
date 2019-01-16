@@ -2,8 +2,8 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.13.0 (2019-01-16)
+-------------------
 * Tailor: Creating Jenkinsfile
 * Delete the scans you aren't using (`#20 <https://github.com/locusrobotics/slam_karto/issues/20>`_)
 * Contributors: Stephen Williams, locus-services
