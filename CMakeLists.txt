@@ -5,7 +5,6 @@ find_package(catkin REQUIRED
   COMPONENTS
     cmake_modules
     geometry_msgs
-    interactive_markers
     message_filters
     nav_msgs
     open_karto
@@ -36,14 +35,6 @@ add_definitions(${EIGEN_DEFINITIONS})
 
 catkin_package()
 
-add_executable(map_alignment_tool
-  src/map_alignment_tool.cpp
-)
-target_link_libraries(map_alignment_tool
-  ${Boost_LIBRARIES}
-  ${catkin_LIBRARIES}
-)
-
 add_executable(slam_karto
   src/loop_closure_callback.cpp
   src/slam_karto.cpp
@@ -54,6 +45,6 @@ target_link_libraries(slam_karto
   ${catkin_LIBRARIES}
 )
 
-install(TARGETS map_alignment_tool slam_karto
+install(TARGETS slam_karto
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
