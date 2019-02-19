@@ -40,6 +40,7 @@
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Transform.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float64.h>
@@ -47,6 +48,7 @@
 
 #include "open_karto/Mapper.h"
 
+#include <slam_karto/SetMapTransform.h>
 #include <slam_karto/loop_closure_callback.h>
 #include "spa_solver.h"
 
@@ -72,11 +74,9 @@ class SlamKarto
                      nav_msgs::GetMap::Response &res);
 
     /**
-     * @brief Callback that stores the desired map->local rotate angle, used during the map building step.
-     *
-     * @param msg A Float64 message containing the map->local rotation in radians
+     * @brief Callback that stores the desired map->local transform, used during the map building step.
      */
-    void mapRotationCallback(const std_msgs::Float64::ConstPtr& msg);
+    bool setMapTransformCallback(slam_karto::SetMapTransform::Request& req, slam_karto::SetMapTransform::Response& rep);
 
     /**
     * @brief Indicates if the system is (supposed to be) paused
@@ -133,6 +133,14 @@ class SlamKarto
     void publishLoop(double transform_publish_period);
 
     /**
+     * @brief Create a Path message from the scan data
+     */
+    nav_msgs::Path createPath(
+      const karto::LocalizedRangeScanVector& scans,
+      const std::string& frame,
+      const ros::Time& stamp);
+
+    /**
      * @brief Copy the scans from the mapper and build a new map.
      *
      * Note that this function blocks, waiting for access to the mapper's set of laserscans.
@@ -177,14 +185,15 @@ class SlamKarto
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
     message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
     tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
-    ros::Subscriber map_rotation_subscriber_;  //!< Receive the desired map->local frame rotation
     ros::Publisher sst_;
     ros::Publisher slam_graph_visualization_publisher_;  //!< Visualization of the Karto SLAM graph
     ros::Publisher scan_queue_visualization_publisher_;  //!< Visualization of the percent fill of the laserscan queue
-    ros::Publisher path_publisher_;  //!< Publish the entire optimized path
+    ros::Publisher local_path_publisher_;  //!< Publish the entire optimized path in the map_local frame
+    ros::Publisher map_path_publisher_;  //!< Publish the entire optimized path in the map frame
 
     ros::Publisher sstm_;
     ros::ServiceServer ss_;
+    ros::ServiceServer map_transform_service_;  //!< Service server for receiving map->map_local transforms
     ros::Publisher pause_publisher_;  //!< Topic that publishes requests to pause/unpause navigation
     ros::ServiceClient pause_service_client_;  //!< Service client that requests to pause/unpause navigation
     ros::WallTimer queue_visualization_timer_;  //!< Timer used to publish the scan queue length visualization
@@ -197,7 +206,9 @@ class SlamKarto
     std::string odom_frame_;
     std::string map_frame_;  //!< The map will be constructed and published in the map frame
     std::string base_frame_;
-    double map_to_local_rotation_;  //!< The received map->local frame rotation
+    geometry_msgs::Transform map_to_local_transform_;  //!< The current map->local frame transform
+    slam_karto::SetMapTransform::Request map_to_local_request_;  //!< The last received map->local transform request
+    bool map_to_local_dirty_;  //!< Flag indicating a new request was received
     int throttle_scans_;
     double resolution_;
     bool pause_on_loop_closure_;  //!< Issue pause/resume commands in response to loop closure events
@@ -218,6 +229,7 @@ class SlamKarto
 
     // Internal state
     bool got_map_;
+    bool map_dirty_;  //!< Flag indicating the map needs to be regenerated
     int laser_count_;
     boost::thread* transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
     boost::thread* map_thread_;  //!< Separate thread for building the map image/occupancy grid.
@@ -240,9 +252,11 @@ class SlamKarto
 
 SlamKarto::SlamKarto() :
         tf_(ros::Duration(60.0)),
+        map_to_local_dirty_(false),
         pause_on_loop_closure_(false),
         loop_closure_pauser_(NULL),
         got_map_(false),
+        map_dirty_(false),
         laser_count_(0),
         transform_thread_(NULL),
         map_thread_(NULL),
@@ -255,6 +269,13 @@ SlamKarto::SlamKarto() :
         scan_queue_(1)
 {
   map_to_odom_.setIdentity();
+  map_to_local_transform_.translation.x = 0.0;
+  map_to_local_transform_.translation.y = 0.0;
+  map_to_local_transform_.translation.z = 0.0;
+  map_to_local_transform_.rotation.x = 0.0;
+  map_to_local_transform_.rotation.y = 0.0;
+  map_to_local_transform_.rotation.z = 0.0;
+  map_to_local_transform_.rotation.w = 1.0;
   // Retrieve parameters
   ros::NodeHandle private_nh_("~");
   if(!private_nh_.getParam("local_map_frame", local_map_frame_))
@@ -304,13 +325,13 @@ SlamKarto::SlamKarto() :
   tfB_ = new tf::TransformBroadcaster();
   sst_ = node_.advertise<nav_msgs::OccupancyGrid>("map", 1, true);
   sstm_ = node_.advertise<nav_msgs::MapMetaData>("map_metadata", 1, true);
-  path_publisher_ = node_.advertise<nav_msgs::Path>("path", 1, true);
+  local_path_publisher_ = node_.advertise<nav_msgs::Path>("local_path", 1, true);
+  map_path_publisher_ = node_.advertise<nav_msgs::Path>("map_path", 1, true);
   ss_ = node_.advertiseService("dynamic_map", &SlamKarto::mapCallback, this);
+  map_transform_service_ = node_.advertiseService("set_map_transform", &SlamKarto::setMapTransformCallback, this);
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
-  map_rotation_subscriber_ = node_.subscribe<std_msgs::Float64>("map_rotation", 1,
-    boost::bind(&SlamKarto::mapRotationCallback, this, _1));
   slam_graph_visualization_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("slam_graph", 1);
   scan_queue_visualization_publisher_ = node_.advertise<visualization_msgs::Marker>("scan_queue", 1);
   pause_publisher_ = node_.advertise<std_msgs::Bool>("pause_topic", 1, true);
@@ -574,6 +595,11 @@ SlamKarto::optimizationLoop()
       updateMapToOdomTransform(range_scan);
       // Add the localized range scan to the dataset (for memory management)
       dataset_->Add(range_scan);
+      // Mark the map as needing to be updated
+      {
+        boost::mutex::scoped_lock lock(map_mutex_);
+        map_dirty_ = true;
+      }
     }
     else
     {
@@ -621,7 +647,6 @@ void
 SlamKarto::publishTransform()
 {
   boost::mutex::scoped_lock lock(map_to_odom_mutex_);
-  ros::Time tf_expiration = ros::Time::now() + ros::Duration(0.05);
   tfB_->sendTransform(tf::StampedTransform (map_to_odom_, ros::Time::now(), local_map_frame_, odom_frame_));
 }
 
@@ -911,10 +936,17 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
   }
 }
 
-void
-SlamKarto::mapRotationCallback(const std_msgs::Float64::ConstPtr& msg)
+bool
+SlamKarto::setMapTransformCallback(
+  slam_karto::SetMapTransform::Request& req,
+  slam_karto::SetMapTransform::Response& res)
 {
-  map_to_local_rotation_ = msg->data;
+  boost::mutex::scoped_lock lock(map_mutex_);
+  map_to_local_request_ = req;
+  map_to_local_dirty_ = true;
+
+  res.success = true;
+  return true;
 }
 
 void
@@ -944,9 +976,46 @@ SlamKarto::mapLoop(double map_update_interval)
   }
 }
 
+nav_msgs::Path
+SlamKarto::createPath(const karto::LocalizedRangeScanVector& scans, const std::string& frame, const ros::Time& stamp)
+{
+  nav_msgs::Path path_msg;
+  path_msg.header.stamp = stamp;
+  path_msg.header.frame_id = frame;
+  for (size_t i = 0; i < scans.size(); ++i)
+  {
+    const karto::Pose2& pose_2d = scans[i]->GetCorrectedPose();
+    geometry_msgs::PoseStamped pose_3d;
+    pose_3d.header.stamp.fromSec(scans[i]->GetTime());
+    pose_3d.header.frame_id = frame;
+    pose_3d.pose.position.x = pose_2d.GetX();
+    pose_3d.pose.position.y = pose_2d.GetY();
+    pose_3d.pose.position.z = 0.0;
+    pose_3d.pose.orientation = tf::createQuaternionMsgFromYaw(pose_2d.GetHeading());
+    path_msg.poses.push_back(pose_3d);
+  }
+  return path_msg;
+}
+
 bool
 SlamKarto::updateMap()
 {
+  bool map_dirty;
+  bool map_to_local_dirty;
+  {
+    boost::mutex::scoped_lock lock(map_mutex_);
+    map_dirty = map_dirty_;
+    map_to_local_dirty = map_to_local_dirty_;
+  }
+  if (!map_dirty && !map_to_local_dirty)
+  {
+    // Everything is up to date.
+    return false;
+  }
+
+  // Grab the current time to use in all of the messages
+  ros::Time current_time = ros::Time::now();
+
   // Copy the laserscans locally to minimize the time when karto must be locked
   karto::LocalizedRangeScanVector scans;
   {
@@ -965,28 +1034,37 @@ SlamKarto::updateMap()
     }
   }
 
-  // Create the path message. The path message is published in the "local_map" frame so that it can be displayed in
-  // RViz. Thus, we create it from the raw scans before transforming them into the "map" frame.
-  nav_msgs::Path path_msg;
-  path_msg.header.stamp = ros::Time::now();
-  path_msg.header.frame_id = local_map_frame_;
-  for (size_t i = 0; i < scans.size(); ++i)
+  // Get the latest map->local transform
+  karto::Pose2 map_to_local_pose;
+  bool map_zero_origin;
   {
-    const karto::Pose2& pose_2d = scans[i]->GetCorrectedPose();
-    geometry_msgs::PoseStamped pose_3d;
-    pose_3d.header.stamp.fromSec(scans[i]->GetTime());
-    pose_3d.header.frame_id = local_map_frame_;
-    pose_3d.pose.position.x = pose_2d.GetX();
-    pose_3d.pose.position.y = pose_2d.GetY();
-    pose_3d.pose.position.z = 0.0;
-    pose_3d.pose.orientation = tf::createQuaternionMsgFromYaw(pose_2d.GetHeading());
-    path_msg.poses.push_back(pose_3d);
+    boost::mutex::scoped_lock lock(map_mutex_);
+    map_dirty_ = false;
+    if (map_to_local_dirty)
+    {
+      map_to_local_pose = karto::Pose2(
+        map_to_local_request_.transform.translation.x,
+        map_to_local_request_.transform.translation.y,
+        tf::getYaw(map_to_local_request_.transform.rotation));
+      map_zero_origin = map_to_local_request_.zero_origin;
+      map_to_local_dirty_ = false;
+    }
+    else
+    {
+      map_to_local_pose = karto::Pose2(
+        map_to_local_transform_.translation.x,
+        map_to_local_transform_.translation.y,
+        tf::getYaw(map_to_local_transform_.rotation));
+      map_zero_origin = false;
+    }
   }
 
-  // If the map->local rotation is non-zero, transform the scans before building the map
-  if (map_to_local_rotation_ != 0)
+  // Create the path message. The path message is published in the "local_map" frame
+  local_path_publisher_.publish(createPath(scans, local_map_frame_, current_time));
+
+  // If the map->local transform is non-zero, transform the scans before building the map
+  if ((map_to_local_pose.GetX() != 0.0) || (map_to_local_pose.GetY() != 0.0) || (map_to_local_pose.GetHeading() != 0.0))
   {
-    karto::Pose2 map_to_local_pose(0, 0, map_to_local_rotation_);
     karto::Transform map_to_local_transform(map_to_local_pose);
     for (size_t i = 0; i < scans.size(); ++i)
     {
@@ -994,8 +1072,29 @@ SlamKarto::updateMap()
       scan->SetCorrectedPose(map_to_local_transform.TransformPose(scan->GetCorrectedPose()));
     }
   }
+
   // Build a map from the laserscans
   karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
+
+  // If requested to zero the origin, correct all of the scans with the map offset
+  karto::Vector2<kt_double> offset = occ_grid->GetCoordinateConverter()->GetOffset();
+  if (map_zero_origin)
+  {
+    karto::Pose2 offset_pose(-offset.GetX(), -offset.GetY(), 0.0);
+    karto::Transform offset_transform(offset_pose);
+    for (size_t i = 0; i < scans.size(); ++i)
+    {
+      karto::LocalizedRangeScan* scan = scans.at(i);
+      scan->SetCorrectedPose(offset_transform.TransformPose(scan->GetCorrectedPose()));
+    }
+    map_to_local_pose.SetX(map_to_local_pose.GetX() - offset.GetX());
+    map_to_local_pose.SetY(map_to_local_pose.GetY() - offset.GetY());
+    offset.SetX(0.0);
+    offset.SetY(0.0);
+  }
+
+  // Create the path message. The path message is published in the "map" frame
+  map_path_publisher_.publish(createPath(scans, map_frame_, current_time));
 
   // Delete the copied scans
   for (size_t i = 0; i < scans.size(); ++i)
@@ -1015,7 +1114,7 @@ SlamKarto::updateMap()
     boost::mutex::scoped_lock lock(map_mutex_);
 
     // Set the header information
-    map_.map.header.stamp = ros::Time::now();
+    map_.map.header.stamp = current_time;
     map_.map.header.frame_id = map_frame_;
 
     // Reallocate memory if the map changes size
@@ -1028,7 +1127,7 @@ SlamKarto::updateMap()
     }
 
     // Translate to ROS format
-    karto::Vector2<kt_double> offset = occ_grid->GetCoordinateConverter()->GetOffset();
+    map_.map.info.map_load_time = current_time;
     map_.map.info.origin.position.x = offset.GetX();
     map_.map.info.origin.position.y = offset.GetY();
     map_.map.info.width = width;
@@ -1059,30 +1158,28 @@ SlamKarto::updateMap()
       }
     }
     got_map_ = true;
+
+    // Publish the map
+    sst_.publish(map_.map);
+    sstm_.publish(map_.map.info);
   }
 
   // Delete the temporary Karto map object
   delete occ_grid;
 
-  // Create the a map -> local transform that places the map origin at (0,0)
-  geometry_msgs::TransformStamped map_to_local_transform;
-  map_to_local_transform.header.stamp = ros::Time(0, 0);
-  map_to_local_transform.header.frame_id = map_frame_;
-  map_to_local_transform.child_frame_id = local_map_frame_;
-  map_to_local_transform.transform.translation.x = 0;
-  map_to_local_transform.transform.translation.y = 0;
-  map_to_local_transform.transform.translation.z = 0;
-  map_to_local_transform.transform.rotation = tf::createQuaternionMsgFromYaw(map_to_local_rotation_);
+  // Update the map_to_local transform to be consistent with the published map
+  map_to_local_transform_.translation.x = map_to_local_pose.GetX();
+  map_to_local_transform_.translation.y = map_to_local_pose.GetY();
+  map_to_local_transform_.translation.z = 0.0;
+  map_to_local_transform_.rotation = tf::createQuaternionMsgFromYaw(map_to_local_pose.GetHeading());
 
-  // Publish the map
-  sst_.publish(map_.map);
-  sstm_.publish(map_.map.info);
-
-  // Publish the map->local transform
-  static_broadcaster_.sendTransform(map_to_local_transform);
-
-  // Publish the path
-  path_publisher_.publish(path_msg);
+  // Publish the a map -> local transform to tf
+  geometry_msgs::TransformStamped map_to_local_transform_stamped;
+  map_to_local_transform_stamped.header.stamp = ros::Time(0, 0);
+  map_to_local_transform_stamped.header.frame_id = map_frame_;
+  map_to_local_transform_stamped.child_frame_id = local_map_frame_;
+  map_to_local_transform_stamped.transform = map_to_local_transform_;
+  static_broadcaster_.sendTransform(map_to_local_transform_stamped);
 
   // A new map was generated
   ROS_DEBUG("Updated the map");
