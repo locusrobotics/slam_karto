@@ -2,8 +2,8 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.14.0 (2019-03-18)
+-------------------
 * [RST-372] Modified slam_karto to provide a map transform service, not listen to a rotation topic. (`#22 <https://github.com/locusrobotics/slam_karto/issues/22>`_)
   * Only publish maps when something has changed.
   * Make sure all message header stamps are synced
