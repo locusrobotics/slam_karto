@@ -2,6 +2,19 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* [RST-372] Modified slam_karto to provide a map transform service, not listen to a rotation topic. (`#22 <https://github.com/locusrobotics/slam_karto/issues/22>`_)
+  * Only publish maps when something has changed.
+  * Make sure all message header stamps are synced
+  * Modified slam_karto to publish the path in 'local' and 'map' frames
+* Moved map alignment tool to locus_mapping_tools (`#21 <https://github.com/locusrobotics/slam_karto/issues/21>`_)
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Contributors: Stephen Williams, locus-services
+
 0.13.0 (2019-01-16)
 -------------------
 * Tailor: Creating Jenkinsfile
