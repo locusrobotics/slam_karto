@@ -2,8 +2,8 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.15.0 (2019-07-12)
+-------------------
 * Tailor: Updating Jenkinsfile
 * Tailor: Updating Jenkinsfile
 * Contributors: locus-services
