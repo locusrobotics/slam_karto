@@ -2,6 +2,12 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Contributors: locus-services
+
 0.14.0 (2019-03-18)
 -------------------
 * [RST-372] Modified slam_karto to provide a map transform service, not listen to a rotation topic. (`#22 <https://github.com/locusrobotics/slam_karto/issues/22>`_)
