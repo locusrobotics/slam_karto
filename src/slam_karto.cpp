@@ -668,7 +668,7 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     {
       tf_.transformPose(base_frame_, ident, laser_pose);
     }
-    catch(tf::TransformException e)
+    catch(const tf::TransformException& e)
     {
       ROS_WARN("Failed to compute laser pose, aborting initialization (%s)",
 	       e.what());
@@ -716,9 +716,27 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
 				      yaw));
     laser->SetMinimumRange(scan->range_min);
     laser->SetMaximumRange(scan->range_max);
-    laser->SetMinimumAngle(scan->angle_min);
-    laser->SetMaximumAngle(scan->angle_max);
-    laser->SetAngularResolution(scan->angle_increment);
+
+    // Karto uses some directionality checks to determine laserscan validity.
+    // https://github.com/ros-perception/open_karto/blob/melodic-devel/src/Mapper.cpp#L763-L767
+    // This does not play well with lidars that spin clockwise instead of counter-clockwise.
+    // If this is a clockwise lidar, reverse the spin direction by:
+    // * Swapping the min and max angles
+    // * Inverting the angle increment
+    // * Marking the lidar as inverted, which reverses the order of the range readings
+    if (scan->angle_increment > 0)
+    {
+      laser->SetMinimumAngle(scan->angle_min);
+      laser->SetMaximumAngle(scan->angle_max);
+      laser->SetAngularResolution(scan->angle_increment);
+    }
+    else
+    {
+      laser->SetMinimumAngle(scan->angle_max);
+      laser->SetMaximumAngle(scan->angle_min);
+      laser->SetAngularResolution(-scan->angle_increment);
+      lasers_inverted_[scan->header.frame_id] = !inverse;
+    }
     // TODO: expose this, and many other parameters
     //laser_->SetRangeThreshold(12.0);
 
@@ -743,7 +761,7 @@ SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
   {
     tf_.transformPose(odom_frame_, ident, odom_pose);
   }
-  catch(tf::TransformException e)
+  catch(const tf::TransformException& e)
   {
     ROS_WARN("Failed to compute odom pose, skipping scan (%s)", e.what());
     return false;
