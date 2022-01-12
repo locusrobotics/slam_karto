@@ -182,6 +182,7 @@ class SlamKarto
     ros::NodeHandle node_;
     tf::TransformListener tf_;
     tf::TransformBroadcaster* tfB_;
+    ros::Time last_transform_time_;  //!< The timestamp of the last published local_map->odom transform
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
     message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
     tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
@@ -647,7 +648,12 @@ void
 SlamKarto::publishTransform()
 {
   boost::mutex::scoped_lock lock(map_to_odom_mutex_);
-  tfB_->sendTransform(tf::StampedTransform (map_to_odom_, ros::Time::now(), local_map_frame_, odom_frame_));
+  ros::Time transform_time = ros::Time::now();
+  if (transform_time != last_transform_time_)
+  {
+    tfB_->sendTransform(tf::StampedTransform (map_to_odom_, transform_time, local_map_frame_, odom_frame_));
+    last_transform_time_ = transform_time;
+  }
 }
 
 karto::LaserRangeFinder*
