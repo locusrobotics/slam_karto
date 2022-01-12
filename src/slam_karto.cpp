@@ -251,6 +251,40 @@ class SlamKarto
     boost::mutex scan_queue_mutex_;  //!< Mutex lock for queue operations (push, pop, front)
 };
 
+namespace
+{
+// Verify the correlation search space dimension is an even multiple of the resolution
+
+/**
+ * @brief Force a dimension (width, height, etc) to be an even (or odd) multiple of a grid resolution
+ *
+ * @param[in] dimension - The starting dimension
+ * @param[in] resolution - The grid resolution
+ * @param[in] should_be_even - True if the result should be an even multiple, False if it should be an odd multiple
+ * @return The updated dimension that meets the desired properties
+ */
+double forceEvenOrOdd(const double dimension, const double resolution, const bool should_be_even)
+{
+  double cells = dimension / resolution;
+  double cells_rounded = std::round(dimension / resolution);
+  bool exact_multiple = (std::abs(cells - cells_rounded) < 1.0e-6);
+  int expected_remainder = should_be_even ? 0 : 1;
+  bool is_expected_remainder = (static_cast<int>(cells_rounded) % 2 == expected_remainder);
+  if (exact_multiple && is_expected_remainder)
+  {
+    return dimension;
+  }
+  else
+  {
+    if (!is_expected_remainder)
+    {
+      cells_rounded += 1.0;
+    }
+    return resolution * cells_rounded;
+  }
+};
+}
+
 SlamKarto::SlamKarto() :
         tf_(ros::Duration(60.0)),
         map_to_local_dirty_(false),
@@ -418,12 +452,35 @@ SlamKarto::SlamKarto() :
   if(private_nh_.getParam("correlation_search_space_resolution", correlation_search_space_resolution))
     mapper_->setParamCorrelationSearchSpaceResolution(correlation_search_space_resolution);
 
+  // Verify the correlation search space dimension is an even multiple of the resolution
+  double new_correlation_search_space_dimension =
+    forceEvenOrOdd(correlation_search_space_dimension, correlation_search_space_resolution, true);
+  if (new_correlation_search_space_dimension != correlation_search_space_dimension)
+  {
+    ROS_WARN_STREAM(
+      "The value 'correlation_search_space_dimension' must be an even multiple of "
+      "'correlation_search_space_resolution'. Adjusting the value of 'correlation_search_space_dimension' from "
+      << correlation_search_space_dimension << " to " << new_correlation_search_space_dimension);
+    correlation_search_space_dimension = new_correlation_search_space_dimension;
+  }
+
   double correlation_search_space_smear_deviation;
   if(private_nh_.getParam("correlation_search_space_smear_deviation", correlation_search_space_smear_deviation))
     mapper_->setParamCorrelationSearchSpaceSmearDeviation(correlation_search_space_smear_deviation);
 
-  // Setting Correlation Parameters, Loop Closure Parameters from the Parameter Server
+  // Verify the correlation search smear deviation is an odd multiple of the resolution
+  double new_correlation_search_space_smear_deviation =
+    forceEvenOrOdd(correlation_search_space_smear_deviation, correlation_search_space_resolution, false);
+  if (new_correlation_search_space_smear_deviation != correlation_search_space_smear_deviation)
+  {
+    ROS_WARN_STREAM(
+      "The value 'correlation_search_space_smear_deviation' must be an odd multiple of "
+      "'correlation_search_space_resolution'. Adjusting the value of 'correlation_search_space_smear_deviation' from "
+      << correlation_search_space_smear_deviation << " to " << new_correlation_search_space_smear_deviation);
+    correlation_search_space_smear_deviation = new_correlation_search_space_smear_deviation;
+  }
 
+  // Setting Correlation Parameters, Loop Closure Parameters from the Parameter Server
   double loop_search_space_dimension;
   if(private_nh_.getParam("loop_search_space_dimension", loop_search_space_dimension))
     mapper_->setParamLoopSearchSpaceDimension(loop_search_space_dimension);
@@ -432,9 +489,33 @@ SlamKarto::SlamKarto() :
   if(private_nh_.getParam("loop_search_space_resolution", loop_search_space_resolution))
     mapper_->setParamLoopSearchSpaceResolution(loop_search_space_resolution);
 
+  // Verify the loop search space dimension is an even multiple of the resolution
+  double new_loop_search_space_dimension =
+    forceEvenOrOdd(loop_search_space_dimension, loop_search_space_resolution, true);
+  if (new_loop_search_space_dimension != loop_search_space_dimension)
+  {
+    ROS_WARN_STREAM(
+      "The value 'loop_search_space_dimension' must be an even multiple of 'loop_search_space_resolution'. Adjusting "
+      "the value of 'loop_search_space_dimension' from "
+      << loop_search_space_dimension << " to " << new_loop_search_space_dimension);
+    loop_search_space_dimension = new_loop_search_space_dimension;
+  }
+
   double loop_search_space_smear_deviation;
   if(private_nh_.getParam("loop_search_space_smear_deviation", loop_search_space_smear_deviation))
     mapper_->setParamLoopSearchSpaceSmearDeviation(loop_search_space_smear_deviation);
+
+  // Verify the loop search smear deviation is an odd multiple of the resolution
+  double new_loop_search_space_smear_deviation =
+    forceEvenOrOdd(loop_search_space_smear_deviation, loop_search_space_resolution, false);
+  if (new_loop_search_space_smear_deviation != loop_search_space_smear_deviation)
+  {
+    ROS_WARN_STREAM(
+      "The value 'loop_search_space_smear_deviation' must be an odd multiple of 'loop_search_space_resolution'. "
+      "Adjusting the value of 'loop_search_space_smear_deviation' from "
+      << loop_search_space_smear_deviation << " to " << new_loop_search_space_smear_deviation);
+    loop_search_space_smear_deviation = new_loop_search_space_smear_deviation;
+  }
 
   // Setting Scan Matcher Parameters from the Parameter Server
 
@@ -701,7 +782,7 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
       tf_.transformPoint(scan->header.frame_id, up, up);
       ROS_DEBUG("Z-Axis in sensor frame: %.3f", up.z());
     }
-    catch (tf::TransformException& e)
+    catch (const tf::TransformException& e)
     {
       ROS_WARN("Unable to determine orientation of laser: %s", e.what());
       return NULL;
