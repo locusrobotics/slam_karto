@@ -2,6 +2,14 @@
 Changelog for package slam_karto
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* [RST-4847] Backport RST-4847 into Release 20.7 (`#4 <https://github.com/locusrobotics/slam_karto/issues/4>`_)
+  Add support for clockwise spinning lidars to slam_karto (`#3 <https://github.com/locusrobotics/slam_karto/issues/3>`_)
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Contributors: Stephen Williams, locus-services
+
 0.16.0 (2020-10-02)
 -------------------
 * Tailor: Updating Jenkinsfile
