@@ -985,6 +985,20 @@ SlamKarto::publishQueueVisualization()
 void
 SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
 {
+  auto is_scan_valid = [](const sensor_msgs::LaserScan& scan)
+  {
+    auto expected_scans = static_cast<int>(std::round((scan.angle_max - scan.angle_min) / scan.angle_increment)) + 1;
+    return (std::abs(scan.angle_increment) < 0.1) &&
+           (std::abs(expected_scans - static_cast<int>(scan.ranges.size())) <= 1);
+  };
+  if (!is_scan_valid(*scan))
+  {
+    ROS_WARN_STREAM_THROTTLE(
+      10.0,
+      "Scan at " << scan->header.stamp << " is invalid (range count = " << scan->ranges.size() << "). Skipping scan.");
+    return;
+  }
+
   laser_count_++;
   if ((laser_count_ % throttle_scans_) != 0)
     return;
