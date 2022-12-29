@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0.2)
 project(slam_karto)
 
 find_package(catkin REQUIRED
@@ -37,7 +37,7 @@ catkin_package(
     message_runtime
 )
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-Wall)
 
 include_directories(
