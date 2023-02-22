@@ -23,6 +23,23 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Stephen Williams, locus-services
 
+Forthcoming
+-----------
+* 0.17.0
+* Update changelogs
+* Tailor: Updating Jenkinsfile
+* [RST-5986] Filter out bad scans from slam_karto (#5)
+* Tailor: Updating Jenkinsfile
+* [RST-4712] Added checks for certain required relationships between parameters (#1)
+* [RST-4384] Only publish new transforms (#2)
+* [RST-4847] Add support for clockwise spinning lidars to slam_karto (#3)
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Contributors: Gary Servin, Stephen Williams, locus-services
+
 0.16.0 (2020-10-02)
 -------------------
 * Tailor: Updating Jenkinsfile
