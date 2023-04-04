@@ -210,7 +210,7 @@ class SlamKarto
     std::string odom_frame_;
     std::string map_frame_;  //!< The map will be constructed and published in the map frame
     std::string base_frame_;
-    slam_karto::SetMapTransform::Request map_requested_transform_;  //!< The last received map->local transform request
+    slam_karto::SetMapTransform::Request map_requested_transform_;  //!< The last received map transform request
     bool map_requested_transform_dirty_;  //!< Flag indicating a new request was received
     int throttle_scans_;
     double resolution_;
