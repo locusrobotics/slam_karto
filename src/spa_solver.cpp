@@ -60,7 +60,7 @@ void SpaSolver::Compute()
 
 void SpaSolver::AddNode(karto::Vertex<karto::LocalizedRangeScan>* pVertex)
 {
-  karto::Pose2 pose = pVertex->GetObject()->GetCorrectedPose();
+  karto::Pose2 pose = pVertex->GetObject()->GetSensorPose();
   Eigen::Vector3d vector(pose.GetX(), pose.GetY(), pose.GetHeading());
   m_Spa.addNode(vector, pVertex->GetObject()->GetUniqueId());
 }
