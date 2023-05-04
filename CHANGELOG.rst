@@ -23,6 +23,17 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Stephen Williams, locus-services
 
+Forthcoming
+-----------
+* Rst 7062 remove map local frame (`#3 <https://github.com/locusrobotics/slam_karto/issues/3>`_) (`#4 <https://github.com/locusrobotics/slam_karto/issues/4>`_)
+  * Removed local map frame
+  * Bugfix: correct graph vertex position as all the constraints are sensor to sensor wise
+  * Refactored to allow for zero offset origin correction
+  * Update src/slam_karto.cpp
+  ---------
+  Co-authored-by: Stephen Williams <stephen.vincent.williams@gmail.com>
+* Contributors: Carlos Mendes
+
 0.18.0 (2023-02-22)
 -------------------
 * 0.17.0
