@@ -35,6 +35,11 @@
 #include "visualization_msgs/Marker.h"
 #include "visualization_msgs/MarkerArray.h"
 
+#include <locus_msgs/Edge.h>
+#include <locus_msgs/GetGraph.h>
+#include <locus_msgs/GraphStamped.h>
+#include <locus_msgs/GraphUpdate.h>
+#include <locus_msgs/Node.h>
 #include "nav_msgs/MapMetaData.h"
 #include "sensor_msgs/LaserScan.h"
 #include "nav_msgs/GetMap.h"
@@ -73,6 +78,12 @@ class SlamKarto
     void laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan);
     bool mapCallback(nav_msgs::GetMap::Request  &req,
                      nav_msgs::GetMap::Response &res);
+
+    /**
+     * @brief Callback for service that send the complete Graph to the client
+     */
+    bool graphCallback(locus_msgs::GetGraph::Request  &req,
+                       locus_msgs::GetGraph::Response &res);
 
     /**
      * @brief Callback that stores the desired map->local transform, used during the map building step.
@@ -149,9 +160,22 @@ class SlamKarto
     bool updateMap();
 
     /**
-     * @brief Transform localized range scans and sync solver
+     * @brief Compute the changes between two graphs
+     *
+     * @param[in] current - The newer graph
+     * @param[in] previous - The original reference graph
+     * @param[in] change_threshold - Tolerence for node position changes
+     * @return The set of differences between the two graphs
      */
-    void transformMap(const karto::Pose2& transform);
+    boost::shared_ptr<locus_msgs::GraphUpdate> computeGraphChanges(
+      const locus_msgs::GraphStamped& current,
+      const locus_msgs::GraphStamped& previous,
+      const double change_threshold = 0.05);
+
+      /**
+       * @brief Transform localized range scans and sync solver
+       */
+      void transformMap(const karto::Pose2& transform);
 
     /**
      * @brief Thread function for building and publishing the map
@@ -192,12 +216,15 @@ class SlamKarto
     message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
     tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
     ros::Publisher sst_;
+    ros::Publisher graph_publisher_;  //!< Structure graph representation of the Karto SLAM graph
+    ros::Publisher graph_updates_publisher_;  //!< Publish the recent changes to the SLAM graph
     ros::Publisher slam_graph_visualization_publisher_;  //!< Visualization of the Karto SLAM graph
     ros::Publisher scan_queue_visualization_publisher_;  //!< Visualization of the percent fill of the laserscan queue
     ros::Publisher map_path_publisher_;  //!< Publish the entire optimized path in the map frame
 
     ros::Publisher sstm_;
     ros::ServiceServer ss_;
+    ros::ServiceServer graph_server_;  //!< Service server for sending the full graph to clients
     ros::ServiceServer map_transform_service_;  //!< Service server for receiving map->map_local transforms
     ros::Publisher pause_publisher_;  //!< Topic that publishes requests to pause/unpause navigation
     ros::ServiceClient pause_service_client_;  //!< Service client that requests to pause/unpause navigation
@@ -205,6 +232,7 @@ class SlamKarto
 
     // The map that will be published / send to service callers
     nav_msgs::GetMap::Response map_;
+    locus_msgs::GraphStamped graph_msg_;
 
     // Storage for ROS parameters
     std::string odom_frame_;
@@ -354,10 +382,13 @@ SlamKarto::SlamKarto() :
   sstm_ = node_.advertise<nav_msgs::MapMetaData>("map_metadata", 1, true);
   map_path_publisher_ = node_.advertise<nav_msgs::Path>("map_path", 1, true);
   ss_ = node_.advertiseService("dynamic_map", &SlamKarto::mapCallback, this);
+  graph_server_ = node_.advertiseService("get_graph", &SlamKarto::graphCallback, this);
   map_transform_service_ = node_.advertiseService("set_map_transform", &SlamKarto::setMapTransformCallback, this);
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
+  graph_publisher_ = node_.advertise<locus_msgs::GraphStamped>("graph", 1);
+  graph_updates_publisher_ = node_.advertise<locus_msgs::GraphUpdate>("graph_updates", 1);
   slam_graph_visualization_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("slam_graph", 1);
   scan_queue_visualization_publisher_ = node_.advertise<visualization_msgs::Marker>("scan_queue", 1);
   pause_publisher_ = node_.advertise<std_msgs::Bool>("pause_topic", 1, true);
@@ -1193,6 +1224,7 @@ SlamKarto::updateMap()
 
   // Copy the laserscans locally to minimize the time when karto must be locked
   karto::LocalizedRangeScanVector scans;
+  auto graph_msg = locus_msgs::GraphStamped();
   {
     boost::mutex::scoped_lock lock(mapper_mutex_);
     karto::LocalizedRangeScanVector source_scans = mapper_->GetAllProcessedScans();
@@ -1207,6 +1239,41 @@ SlamKarto::updateMap()
       scan->SetTime(source_scan->GetTime());
       scans.push_back(scan);
     }
+
+    // Populate the graph
+    graph_msg.header.stamp = current_time;
+    graph_msg.header.frame_id = map_frame_;
+    for (const auto& [name, vertices] : mapper_->GetGraph()->GetVertices())
+    {
+      for (const auto& vertex : vertices)
+      {
+        auto node_msg = locus_msgs::Node();
+        node_msg.id = vertex->GetObject()->GetUniqueId();
+        node_msg.position.x = vertex->GetObject()->GetCorrectedPose().GetX();
+        node_msg.position.y = vertex->GetObject()->GetCorrectedPose().GetY();
+        graph_msg.graph.nodes.push_back(node_msg);
+      }
+    }
+    for (const auto& edge : mapper_->GetGraph()->GetEdges())
+    {
+      auto edge_msg = locus_msgs::Edge();
+      edge_msg.node_ids[0] = edge->GetSource()->GetObject()->GetUniqueId();
+      edge_msg.node_ids[1] = edge->GetTarget()->GetObject()->GetUniqueId();
+      graph_msg.graph.edges.push_back(edge_msg);
+    }
+    // Force the graph structure to be sorted. This will allow easier comparisons later.
+    std::sort(
+      graph_msg.graph.nodes.begin(),
+      graph_msg.graph.nodes.end(),
+      [](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs) { return lhs.id < rhs.id; });
+    std::sort(
+      graph_msg.graph.edges.begin(),
+      graph_msg.graph.edges.end(),
+      [](const locus_msgs::Edge& lhs, const locus_msgs::Edge& rhs)
+      {
+        return (lhs.node_ids[0] < rhs.node_ids[0]) ||
+               (lhs.node_ids[0] == rhs.node_ids[0] && lhs.node_ids[1] < rhs.node_ids[1]);
+      });
   }
 
   // Build a map from the laserscans
@@ -1297,6 +1364,11 @@ SlamKarto::updateMap()
     // Publish the map
     sst_.publish(map_.map);
     sstm_.publish(map_.map.info);
+
+    // Publish the new graph
+    graph_publisher_.publish(graph_msg);
+    graph_updates_publisher_.publish(computeGraphChanges(graph_msg, graph_msg_));
+    std::swap(graph_msg_, graph_msg);
   }
 
   // Delete the temporary Karto map object
@@ -1306,6 +1378,43 @@ SlamKarto::updateMap()
   ROS_DEBUG("Updated the map");
 
   return true;
+}
+
+boost::shared_ptr<locus_msgs::GraphUpdate> SlamKarto::computeGraphChanges(
+  const locus_msgs::GraphStamped& current,
+  const locus_msgs::GraphStamped& previous,
+  const double change_threshold)
+{
+  const double threshold_sq = change_threshold * change_threshold;
+  auto updates = boost::make_shared<locus_msgs::GraphUpdate>();
+  updates->header = current.header;
+  // Find nodes in the current graph that do not exist in the previous graph, or have substantially changed position
+  updates->node_changes;
+  std::set_difference(
+    current.graph.nodes.begin(),
+    current.graph.nodes.end(),
+    previous.graph.nodes.begin(),
+    previous.graph.nodes.end(),
+    std::back_inserter(updates->node_changes),
+    [threshold_sq](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs)
+    {
+      return (lhs.id < rhs.id) ||
+             (lhs.id == rhs.id && std::pow(lhs.position.x, 2) + std::pow(lhs.position.y, 2) <
+                                    std::pow(rhs.position.x, 2) + std::pow(rhs.position.y, 2) - threshold_sq);
+    });
+  // Find the edges in the current graph that do not exist in the previous graph
+  std::set_difference(
+    current.graph.edges.begin(),
+    current.graph.edges.end(),
+    previous.graph.edges.begin(),
+    previous.graph.edges.end(),
+    std::back_inserter(updates->edge_changes),
+    [](const locus_msgs::Edge& lhs, const locus_msgs::Edge& rhs)
+    {
+      return (lhs.node_ids[0] < rhs.node_ids[0]) ||
+             (lhs.node_ids[0] == rhs.node_ids[0] && lhs.node_ids[1] < rhs.node_ids[1]);
+    });
+  return updates;
 }
 
 bool SlamKarto::hasMovedEnough(const karto::LocalizedRangeScan* scan)
@@ -1385,6 +1494,16 @@ SlamKarto::mapCallback(nav_msgs::GetMap::Request  &req,
   }
   else
     return false;
+}
+
+bool
+SlamKarto::graphCallback(locus_msgs::GetGraph::Request  &req,
+                         locus_msgs::GetGraph::Response &res)
+{
+  boost::mutex::scoped_lock lock(map_mutex_);
+  res.graph = graph_msg_;
+  res.success = true;
+  return true;
 }
 
 void

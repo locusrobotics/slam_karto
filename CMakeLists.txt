@@ -4,6 +4,7 @@ project(slam_karto)
 find_package(catkin REQUIRED
   COMPONENTS
     geometry_msgs
+    locus_msgs
     message_filters
     message_generation
     nav_msgs
