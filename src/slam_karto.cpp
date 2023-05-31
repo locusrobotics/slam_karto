@@ -1385,7 +1385,6 @@ boost::shared_ptr<locus_msgs::GraphUpdate> SlamKarto::computeGraphChanges(
   const locus_msgs::GraphStamped& previous,
   const double change_threshold)
 {
-  const double threshold_sq = change_threshold * change_threshold;
   auto updates = boost::make_shared<locus_msgs::GraphUpdate>();
   updates->header = current.header;
   // Find nodes in the current graph that do not exist in the previous graph, or have substantially changed position
@@ -1396,12 +1395,22 @@ boost::shared_ptr<locus_msgs::GraphUpdate> SlamKarto::computeGraphChanges(
     previous.graph.nodes.begin(),
     previous.graph.nodes.end(),
     std::back_inserter(updates->node_changes),
-    [threshold_sq](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs)
+    [change_threshold](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs)
     {
       return (lhs.id < rhs.id) ||
-             (lhs.id == rhs.id && std::pow(lhs.position.x, 2) + std::pow(lhs.position.y, 2) <
-                                    std::pow(rhs.position.x, 2) + std::pow(rhs.position.y, 2) - threshold_sq);
+             (lhs.id == rhs.id && std::hypot(lhs.position.x - rhs.position.x, lhs.position.y - rhs.position.y) > change_threshold);
     });
+
+  // This does not work as intended
+  //  const double threshold_sq = change_threshold * change_threshold;
+  //
+  //    [threshold_sq](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs)
+  //    {
+  //      return (lhs.id < rhs.id) ||
+  //             (lhs.id == rhs.id && std::pow(lhs.position.x, 2) + std::pow(lhs.position.y, 2) <
+  //                                    std::pow(rhs.position.x, 2) + std::pow(rhs.position.y, 2) - threshold_sq);
+  //    });
+
   // Find the edges in the current graph that do not exist in the previous graph
   std::set_difference(
     current.graph.edges.begin(),
