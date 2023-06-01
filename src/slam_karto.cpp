@@ -35,11 +35,9 @@
 #include "visualization_msgs/Marker.h"
 #include "visualization_msgs/MarkerArray.h"
 
-#include <locus_msgs/Edge.h>
 #include <locus_msgs/GetGraph.h>
 #include <locus_msgs/GraphStamped.h>
 #include <locus_msgs/GraphUpdate.h>
-#include <locus_msgs/Node.h>
 #include "nav_msgs/MapMetaData.h"
 #include "sensor_msgs/LaserScan.h"
 #include "nav_msgs/GetMap.h"
@@ -55,6 +53,7 @@
 #include "open_karto/Mapper.h"
 
 #include <slam_karto/SetMapTransform.h>
+#include <slam_karto/graph_update.h>
 #include <slam_karto/loop_closure_callback.h>
 #include "spa_solver.h"
 
@@ -160,22 +159,9 @@ class SlamKarto
     bool updateMap();
 
     /**
-     * @brief Compute the changes between two graphs
-     *
-     * @param[in] current - The newer graph
-     * @param[in] previous - The original reference graph
-     * @param[in] change_threshold - Tolerence for node position changes
-     * @return The set of differences between the two graphs
+     * @brief Transform localized range scans and sync solver
      */
-    boost::shared_ptr<locus_msgs::GraphUpdate> computeGraphChanges(
-      const locus_msgs::GraphStamped& current,
-      const locus_msgs::GraphStamped& previous,
-      const double change_threshold = 0.05);
-
-      /**
-       * @brief Transform localized range scans and sync solver
-       */
-      void transformMap(const karto::Pose2& transform);
+    void transformMap(const karto::Pose2& transform);
 
     /**
      * @brief Thread function for building and publishing the map
@@ -1367,7 +1353,7 @@ SlamKarto::updateMap()
 
     // Publish the new graph
     graph_publisher_.publish(graph_msg);
-    graph_updates_publisher_.publish(computeGraphChanges(graph_msg, graph_msg_));
+    graph_updates_publisher_.publish(slam_karto::computeGraphChanges(graph_msg, graph_msg_));
     std::swap(graph_msg_, graph_msg);
   }
 
@@ -1378,52 +1364,6 @@ SlamKarto::updateMap()
   ROS_DEBUG("Updated the map");
 
   return true;
-}
-
-boost::shared_ptr<locus_msgs::GraphUpdate> SlamKarto::computeGraphChanges(
-  const locus_msgs::GraphStamped& current,
-  const locus_msgs::GraphStamped& previous,
-  const double change_threshold)
-{
-  auto updates = boost::make_shared<locus_msgs::GraphUpdate>();
-  updates->header = current.header;
-  // Find nodes in the current graph that do not exist in the previous graph, or have substantially changed position
-  updates->node_changes;
-  std::set_difference(
-    current.graph.nodes.begin(),
-    current.graph.nodes.end(),
-    previous.graph.nodes.begin(),
-    previous.graph.nodes.end(),
-    std::back_inserter(updates->node_changes),
-    [change_threshold](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs)
-    {
-      return (lhs.id < rhs.id) ||
-             (lhs.id == rhs.id && std::hypot(lhs.position.x - rhs.position.x, lhs.position.y - rhs.position.y) > change_threshold);
-    });
-
-  // This does not work as intended
-  //  const double threshold_sq = change_threshold * change_threshold;
-  //
-  //    [threshold_sq](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs)
-  //    {
-  //      return (lhs.id < rhs.id) ||
-  //             (lhs.id == rhs.id && std::pow(lhs.position.x, 2) + std::pow(lhs.position.y, 2) <
-  //                                    std::pow(rhs.position.x, 2) + std::pow(rhs.position.y, 2) - threshold_sq);
-  //    });
-
-  // Find the edges in the current graph that do not exist in the previous graph
-  std::set_difference(
-    current.graph.edges.begin(),
-    current.graph.edges.end(),
-    previous.graph.edges.begin(),
-    previous.graph.edges.end(),
-    std::back_inserter(updates->edge_changes),
-    [](const locus_msgs::Edge& lhs, const locus_msgs::Edge& rhs)
-    {
-      return (lhs.node_ids[0] < rhs.node_ids[0]) ||
-             (lhs.node_ids[0] == rhs.node_ids[0] && lhs.node_ids[1] < rhs.node_ids[1]);
-    });
-  return updates;
 }
 
 bool SlamKarto::hasMovedEnough(const karto::LocalizedRangeScan* scan)
