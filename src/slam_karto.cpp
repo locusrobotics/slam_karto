@@ -219,6 +219,7 @@ class SlamKarto
     // The map that will be published / send to service callers
     nav_msgs::GetMap::Response map_;
     locus_msgs::GraphStamped graph_msg_;
+    locus_msgs::GraphStamped graph_update_reference_;
 
     // Storage for ROS parameters
     std::string odom_frame_;
@@ -1352,9 +1353,15 @@ SlamKarto::updateMap()
     sstm_.publish(map_.map.info);
 
     // Publish the new graph
-    graph_publisher_.publish(graph_msg);
-    graph_updates_publisher_.publish(slam_karto::computeGraphChanges(graph_msg, graph_msg_));
     std::swap(graph_msg_, graph_msg);
+    graph_publisher_.publish(graph_msg_);
+
+    // Publish just the major changes to the graph
+    // The graph_update_reference_ accumulates all of the previously published changes
+    // By comparing the accumulated updates to the full graph, we can find all changes, even if they happen slowly.
+    auto graph_update = slam_karto::computeGraphChanges(graph_msg_, graph_update_reference_);
+    slam_karto::applyGraphChanges(graph_update_reference_, graph_update);
+    graph_updates_publisher_.publish(graph_update);
   }
 
   // Delete the temporary Karto map object
