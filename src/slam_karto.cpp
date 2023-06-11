@@ -1252,15 +1252,11 @@ SlamKarto::updateMap()
     std::sort(
       graph_msg.graph.nodes.begin(),
       graph_msg.graph.nodes.end(),
-      [](const locus_msgs::Node& lhs, const locus_msgs::Node& rhs) { return lhs.id < rhs.id; });
+      slam_karto::nodeComparison);
     std::sort(
       graph_msg.graph.edges.begin(),
       graph_msg.graph.edges.end(),
-      [](const locus_msgs::Edge& lhs, const locus_msgs::Edge& rhs)
-      {
-        return (lhs.node_ids[0] < rhs.node_ids[0]) ||
-               (lhs.node_ids[0] == rhs.node_ids[0] && lhs.node_ids[1] < rhs.node_ids[1]);
-      });
+      slam_karto::edgeComparison);
   }
 
   // Build a map from the laserscans
