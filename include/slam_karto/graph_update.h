@@ -23,7 +23,7 @@ namespace slam_karto
  * @param[in,out] graph - Graph to update
  * @param[in] changes - A set of graph changes
  */
-void applyGraphChanges(locus_msgs::GraphStamped& current, const locus_msgs::GraphUpdate& changes);
+void applyGraphUpdates(locus_msgs::GraphStamped& current, const locus_msgs::GraphUpdate& updates);
 
 /**
  * @brief Compute the changes between two graphs

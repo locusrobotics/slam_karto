@@ -40,6 +40,255 @@
 #include <gtest/gtest.h>
 
 
+TEST(ApplyGraphChanges, EmptyGraph)
+{
+  // Test that starting with an empty graph works as expected
+
+  auto graph = locus_msgs::GraphStamped();
+
+  auto updates = locus_msgs::GraphUpdate();
+  auto node1 = locus_msgs::Node();
+  node1.id = 1;
+  node1.position.x = 1.0f;
+  node1.position.y = 2.0f;
+  updates.node_changes.push_back(node1);
+
+  auto node2 = locus_msgs::Node();
+  node2.id = 2;
+  node2.position.x = 1.1f;
+  node2.position.y = 2.2f;
+  updates.node_changes.push_back(node2);
+
+  auto edge1 = locus_msgs::Edge();
+  edge1.node_ids[0] = 1;
+  edge1.node_ids[1] = 2;
+  updates.edge_changes.push_back(edge1);
+
+  slam_karto::applyGraphUpdates(graph, updates);
+
+  ASSERT_EQ(graph.graph.nodes.size(), 2u);
+  EXPECT_EQ(graph.graph.nodes[0].id, 1u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.x, 1.0f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.y, 2.0f);
+  EXPECT_EQ(graph.graph.nodes[1].id, 2u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.x, 1.1f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.y, 2.2f);
+
+  ASSERT_EQ(graph.graph.edges.size(), 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[0], 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[1], 2u);
+}
+
+TEST(ApplyGraphChanges, EmptyUpdates)
+{
+  // Test that applying an empty change set does not alter the graph
+
+  auto graph = locus_msgs::GraphStamped();
+
+  auto node1 = locus_msgs::Node();
+  node1.id = 1;
+  node1.position.x = 1.0f;
+  node1.position.y = 2.0f;
+  graph.graph.nodes.push_back(node1);
+
+  auto node2 = locus_msgs::Node();
+  node2.id = 2;
+  node2.position.x = 1.1f;
+  node2.position.y = 2.2f;
+  graph.graph.nodes.push_back(node2);
+
+  auto edge1 = locus_msgs::Edge();
+  edge1.node_ids[0] = 1;
+  edge1.node_ids[1] = 2;
+  graph.graph.edges.push_back(edge1);
+
+  auto updates = locus_msgs::GraphUpdate();
+
+  slam_karto::applyGraphUpdates(graph, updates);
+
+  ASSERT_EQ(graph.graph.nodes.size(), 2u);
+  EXPECT_EQ(graph.graph.nodes[0].id, 1u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.x, 1.0f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.y, 2.0f);
+  EXPECT_EQ(graph.graph.nodes[1].id, 2u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.x, 1.1f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.y, 2.2f);
+
+  ASSERT_EQ(graph.graph.edges.size(), 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[0], 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[1], 2u);
+}
+
+TEST(ApplyGraphChanges, NewEntries)
+{
+  // Test that a non-empty graph is updated to contain new nodes and edges
+
+  auto graph = locus_msgs::GraphStamped();
+
+  auto node1 = locus_msgs::Node();
+  node1.id = 1;
+  node1.position.x = 1.0f;
+  node1.position.y = 2.0f;
+  graph.graph.nodes.push_back(node1);
+
+  auto node2 = locus_msgs::Node();
+  node2.id = 2;
+  node2.position.x = 1.1f;
+  node2.position.y = 2.2f;
+  graph.graph.nodes.push_back(node2);
+
+  auto edge1 = locus_msgs::Edge();
+  edge1.node_ids[0] = 1;
+  edge1.node_ids[1] = 2;
+  graph.graph.edges.push_back(edge1);
+
+  auto updates = locus_msgs::GraphUpdate();
+
+  auto node3 = locus_msgs::Node();
+  node3.id = 3;
+  node3.position.x = 1.5f;
+  node3.position.y = 2.5f;
+  updates.node_changes.push_back(node3);
+
+  auto edge2 = locus_msgs::Edge();
+  edge2.node_ids[0] = 1;
+  edge2.node_ids[1] = 3;
+  updates.edge_changes.push_back(edge2);
+
+  auto edge3 = locus_msgs::Edge();
+  edge3.node_ids[0] = 2;
+  edge3.node_ids[1] = 3;
+  updates.edge_changes.push_back(edge3);
+
+  slam_karto::applyGraphUpdates(graph, updates);
+
+  ASSERT_EQ(graph.graph.nodes.size(), 3u);
+  EXPECT_EQ(graph.graph.nodes[0].id, 1u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.x, 1.0f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.y, 2.0f);
+  EXPECT_EQ(graph.graph.nodes[1].id, 2u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.x, 1.1f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.y, 2.2f);
+  EXPECT_EQ(graph.graph.nodes[2].id, 3u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[2].position.x, 1.5f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[2].position.y, 2.5f);
+
+  ASSERT_EQ(graph.graph.edges.size(), 3u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[0], 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[1], 2u);
+  EXPECT_EQ(graph.graph.edges[1].node_ids[0], 1u);
+  EXPECT_EQ(graph.graph.edges[1].node_ids[1], 3u);
+  EXPECT_EQ(graph.graph.edges[2].node_ids[0], 2u);
+  EXPECT_EQ(graph.graph.edges[2].node_ids[1], 3u);
+}
+
+TEST(ApplyGraphChanges, ChangedEntries)
+{
+  // Test that a non-empty graph can have existing node positions updated
+
+  auto graph = locus_msgs::GraphStamped();
+
+  auto node1 = locus_msgs::Node();
+  node1.id = 1;
+  node1.position.x = 1.0f;
+  node1.position.y = 2.0f;
+  graph.graph.nodes.push_back(node1);
+
+  auto node2 = locus_msgs::Node();
+  node2.id = 2;
+  node2.position.x = 1.1f;
+  node2.position.y = 2.2f;
+  graph.graph.nodes.push_back(node2);
+
+  auto edge1 = locus_msgs::Edge();
+  edge1.node_ids[0] = 1;
+  edge1.node_ids[1] = 2;
+  graph.graph.edges.push_back(edge1);
+
+  auto updates = locus_msgs::GraphUpdate();
+
+  node1.position.x = 1.05f;
+  node1.position.y = 2.05f;
+  updates.node_changes.push_back(node1);
+
+  slam_karto::applyGraphUpdates(graph, updates);
+
+  ASSERT_EQ(graph.graph.nodes.size(), 2u);
+  EXPECT_EQ(graph.graph.nodes[0].id, 1u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.x, 1.05f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.y, 2.05f);
+  EXPECT_EQ(graph.graph.nodes[1].id, 2u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.x, 1.1f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.y, 2.2f);
+
+  ASSERT_EQ(graph.graph.edges.size(), 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[0], 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[1], 2u);
+}
+
+TEST(ApplyGraphChanges, RemainsSorted)
+{
+  // Verify the new nodes and edges are inserted in the correct location in the graph
+
+  auto graph = locus_msgs::GraphStamped();
+
+  auto node1 = locus_msgs::Node();
+  node1.id = 1;
+  node1.position.x = 1.0f;
+  node1.position.y = 2.0f;
+  graph.graph.nodes.push_back(node1);
+
+  auto node3 = locus_msgs::Node();
+  node3.id = 3;
+  node3.position.x = 1.5f;
+  node3.position.y = 2.5f;
+  graph.graph.nodes.push_back(node3);
+
+  auto edge2 = locus_msgs::Edge();
+  edge2.node_ids[0] = 1;
+  edge2.node_ids[1] = 3;
+  graph.graph.edges.push_back(edge2);
+
+  auto updates = locus_msgs::GraphUpdate();
+
+  auto node2 = locus_msgs::Node();
+  node2.id = 2;
+  node2.position.x = 1.1f;
+  node2.position.y = 2.2f;
+  updates.node_changes.push_back(node2);
+
+  auto edge1 = locus_msgs::Edge();
+  edge1.node_ids[0] = 1;
+  edge1.node_ids[1] = 2;
+  updates.edge_changes.push_back(edge1);
+
+  auto edge3 = locus_msgs::Edge();
+  edge3.node_ids[0] = 2;
+  edge3.node_ids[1] = 3;
+  updates.edge_changes.push_back(edge3);
+
+  slam_karto::applyGraphUpdates(graph, updates);
+
+  ASSERT_EQ(graph.graph.nodes.size(), 3u);
+  EXPECT_EQ(graph.graph.nodes[0].id, 1u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.x, 1.0f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[0].position.y, 2.0f);
+  EXPECT_EQ(graph.graph.nodes[1].id, 2u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.x, 1.1f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[1].position.y, 2.2f);
+  EXPECT_EQ(graph.graph.nodes[2].id, 3u);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[2].position.x, 1.5f);
+  EXPECT_FLOAT_EQ(graph.graph.nodes[2].position.y, 2.5f);
+
+  ASSERT_EQ(graph.graph.edges.size(), 3u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[0], 1u);
+  EXPECT_EQ(graph.graph.edges[0].node_ids[1], 2u);
+  EXPECT_EQ(graph.graph.edges[1].node_ids[0], 1u);
+  EXPECT_EQ(graph.graph.edges[1].node_ids[1], 3u);
+  EXPECT_EQ(graph.graph.edges[2].node_ids[0], 2u);
+  EXPECT_EQ(graph.graph.edges[2].node_ids[1], 3u);
+}
+
 TEST(ComputeGraphChanges, Empty)
 {
   // Test that empty input messages do not cause problems. Output should also be empty.

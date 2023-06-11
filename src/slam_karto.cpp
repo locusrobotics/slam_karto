@@ -1356,7 +1356,7 @@ SlamKarto::updateMap()
     // The graph_update_reference_ accumulates all of the previously published changes
     // By comparing the accumulated updates to the full graph, we can find all changes, even if they happen slowly.
     auto graph_update = slam_karto::computeGraphChanges(graph_msg_, graph_update_reference_);
-    slam_karto::applyGraphChanges(graph_update_reference_, graph_update);
+    slam_karto::applyGraphUpdates(graph_update_reference_, graph_update);
     graph_updates_publisher_.publish(graph_update);
   }
 

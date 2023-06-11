@@ -19,10 +19,10 @@
 
 namespace slam_karto
 {
-void applyGraphChanges(locus_msgs::GraphStamped& graph, const locus_msgs::GraphUpdate& changes)
+void applyGraphUpdates(locus_msgs::GraphStamped& graph, const locus_msgs::GraphUpdate& updates)
 {
   // Add new nodes, update existing nodes
-  for (auto&& node : changes.node_changes)
+  for (auto&& node : updates.node_changes)
   {
     auto it = std::lower_bound(graph.graph.nodes.begin(), graph.graph.nodes.end(), node, nodeComparison);
     if (it == graph.graph.nodes.end() || it->id != node.id)
@@ -37,7 +37,7 @@ void applyGraphChanges(locus_msgs::GraphStamped& graph, const locus_msgs::GraphU
     }
   }
   // Add new edges. All edges in the GraphUpdate should be new. There is no such thing as a changed edge.
-  for (auto&& edge : changes.edge_changes)
+  for (auto&& edge : updates.edge_changes)
   {
     auto it = std::lower_bound(graph.graph.edges.begin(), graph.graph.edges.end(), edge, edgeComparison);
     if (it == graph.graph.edges.end() || it->node_ids != edge.node_ids)
@@ -46,6 +46,7 @@ void applyGraphChanges(locus_msgs::GraphStamped& graph, const locus_msgs::GraphU
       graph.graph.edges.insert(it, edge);
     }
   }
+  graph.header = updates.header;
 }
 
 locus_msgs::GraphUpdate computeGraphChanges(
