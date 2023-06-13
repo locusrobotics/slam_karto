@@ -23,8 +23,8 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Stephen Williams, locus-services
 
-Forthcoming
------------
+0.18.2 (2023-06-13)
+-------------------
 * [RST-7375] Backport RST-7375 into Release 23.1 (`#6 <https://github.com/locusrobotics/slam_karto/issues/6>`_)
   Publish the SLAM graph as a structured message for Magellan (`#5 <https://github.com/locusrobotics/slam_karto/issues/5>`_)
   * Initial version of publishing the graph structure
