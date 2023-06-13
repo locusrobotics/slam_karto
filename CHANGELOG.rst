@@ -23,6 +23,15 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Stephen Williams, locus-services
 
+Forthcoming
+-----------
+* [RST-7375] Backport RST-7375 into Release 23.1 (`#6 <https://github.com/locusrobotics/slam_karto/issues/6>`_)
+  Publish the SLAM graph as a structured message for Magellan (`#5 <https://github.com/locusrobotics/slam_karto/issues/5>`_)
+  * Initial version of publishing the graph structure
+  * Add unit tests for applying updates to a graph
+  * Moved the rviz visualization publish inside the updateMap() function as well to avoid relocking the mutex
+* Contributors: Stephen Williams
+
 0.18.1 (2023-05-04)
 -------------------
 * Rst 7062 remove map local frame (`#3 <https://github.com/locusrobotics/slam_karto/issues/3>`_) (`#4 <https://github.com/locusrobotics/slam_karto/issues/4>`_)
