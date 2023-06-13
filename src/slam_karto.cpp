@@ -1248,16 +1248,17 @@ SlamKarto::updateMap()
       edge_msg.node_ids[1] = edge->GetTarget()->GetObject()->GetUniqueId();
       graph_msg.graph.edges.push_back(edge_msg);
     }
-    // Force the graph structure to be sorted. This will allow easier comparisons later.
-    std::sort(
-      graph_msg.graph.nodes.begin(),
-      graph_msg.graph.nodes.end(),
-      slam_karto::nodeComparison);
-    std::sort(
-      graph_msg.graph.edges.begin(),
-      graph_msg.graph.edges.end(),
-      slam_karto::edgeComparison);
   }
+
+  // Force the graph structure to be sorted. This will allow easier comparisons later.
+  std::sort(
+    graph_msg.graph.nodes.begin(),
+    graph_msg.graph.nodes.end(),
+    slam_karto::nodeComparison);
+  std::sort(
+    graph_msg.graph.edges.begin(),
+    graph_msg.graph.edges.end(),
+    slam_karto::edgeComparison);
 
   // Build a map from the laserscans
   karto::OccupancyGrid* occ_grid = karto::OccupancyGrid::CreateFromScans(scans, resolution_);
@@ -1349,7 +1350,7 @@ SlamKarto::updateMap()
     sstm_.publish(map_.map.info);
 
     // Publish the new graph
-    std::swap(graph_msg_, graph_msg);
+    graph_msg_ = std::move(graph_msg);
     graph_publisher_.publish(graph_msg_);
 
     // Publish just the major changes to the graph
