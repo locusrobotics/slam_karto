@@ -178,7 +178,7 @@ class SlamKarto
      *
      * Note that this function blocks, waiting for access to the mapper's graph.
      */
-    void publishGraphVisualization();
+    void publishGraphVisualization(const locus_msgs::GraphStamped& graph);
 
     /**
      * @brief Thread function for updating the pose graph
@@ -877,22 +877,14 @@ SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
 }
 
 void
-SlamKarto::publishGraphVisualization()
+SlamKarto::publishGraphVisualization(const locus_msgs::GraphStamped& graph)
 {
   // Only compute the visualization marker if someone is listening
-  if (slam_graph_visualization_publisher_.getNumSubscribers() > 0)
+  if (slam_graph_visualization_publisher_.getNumSubscribers() > 0 && !graph.graph.nodes.empty())
   {
-    // Copy the graph from the solver, limiting the time the solver
-    // must be locked
-    std::vector<float> graph;
-    {
-      boost::mutex::scoped_lock lock(mapper_mutex_);
-      solver_->getGraph(graph);  // The solver is used by the mapper, so we lock the mapper mutex to ensure access
-    }
-
     visualization_msgs::Marker nodes;
     nodes.header.frame_id = map_frame_;
-    nodes.header.stamp = ros::Time::now();
+    nodes.header.stamp = graph.header.stamp;
     nodes.ns = "karto";
     nodes.id = 0;
     nodes.action = visualization_msgs::Marker::ADD;
@@ -910,10 +902,19 @@ SlamKarto::publishGraphVisualization()
     nodes.color.b = 0.0;
     nodes.color.a = 1.0;
     nodes.lifetime = ros::Duration(0);
+    // Add all of the graph nodes to the visual
+    nodes.points.reserve(graph.graph.nodes.size());
+    for (auto&& node : graph.graph.nodes)
+    {
+      auto point = geometry_msgs::Point();
+      point.x = node.position.x;
+      point.y = node.position.y;
+      nodes.points.push_back(point);
+    }
 
     visualization_msgs::Marker edges;
     edges.header.frame_id = map_frame_;
-    edges.header.stamp = ros::Time::now();
+    edges.header.stamp = graph.header.stamp;
     edges.ns = "karto";
     edges.id = 1;
     edges.action = visualization_msgs::Marker::ADD;
@@ -928,36 +929,29 @@ SlamKarto::publishGraphVisualization()
     edges.color.b = 1.0;
     edges.color.a = 1.0;
     edges.lifetime = ros::Duration(0);
-
-    std::set< std::pair<double, double> > nodes_points;
-    for (uint i = 0; i < graph.size() / 4; i++)
+    // Add all of the graph edges to the visual
+    edges.points.reserve(2 * graph.graph.edges.size());
+    auto get_node_position = [&graph](const unsigned int node_id)
     {
-      // Convert the graph into a set of linked poses
-      geometry_msgs::Point point1;
-      point1.x = graph[4 * i + 0];
-      point1.y = graph[4 * i + 1];
-      geometry_msgs::Point point2;
-      point2.x = graph[4 * i + 2];
-      point2.y = graph[4 * i + 3];
-
-      // Store each pose in a sorted container to remove duplicates.
-      // The ROS messages do not provide comparison operators to do
-      // this with message types in a container.
-      nodes_points.insert(std::pair<double, double>(point1.x, point1.y));
-      nodes_points.insert(std::pair<double, double>(point2.x, point2.y));
-
+      auto point = geometry_msgs::Point();
+      // The nodes in the graph are guaranteed to be sorted by node ID, making it efficient to look them up.
+      auto it = std::lower_bound(
+        graph.graph.nodes.begin(),
+        graph.graph.nodes.end(),
+        node_id,
+        [](const auto& node, const unsigned int id) { return node.id < id; });
+      if (it != graph.graph.nodes.end() && it->id == node_id)
+      {
+        point.x = it->position.x;
+        point.y = it->position.y;
+      }
+      return point;
+    };
+    for (auto&& edge : graph.graph.edges)
+    {
       // Add each pair of poses as an edge in the line list
-      edges.points.push_back(point1);
-      edges.points.push_back(point2);
-    }
-
-    // Add each unique pose as a point in the sphere list
-    for (std::set<std::pair<double, double> >::const_iterator it = nodes_points.begin(); it != nodes_points.end(); ++it)
-    {
-      geometry_msgs::Point point;
-      point.x = it->first;
-      point.y = it->second;
-      nodes.points.push_back(point);
+      edges.points.push_back(get_node_position(edge.node_ids[0]));
+      edges.points.push_back(get_node_position(edge.node_ids[1]));
     }
 
     // Create a single marker array message from the nodes and edges markers
@@ -1108,7 +1102,6 @@ SlamKarto::mapLoop(double map_update_interval)
   while (ros::ok())
   {
     updateMap();
-    publishGraphVisualization();
     r.sleep();
   }
 }
@@ -1344,13 +1337,13 @@ SlamKarto::updateMap()
       }
     }
     got_map_ = true;
+    graph_msg_ = std::move(graph_msg);
 
     // Publish the map
     sst_.publish(map_.map);
     sstm_.publish(map_.map.info);
 
     // Publish the new graph
-    graph_msg_ = std::move(graph_msg);
     graph_publisher_.publish(graph_msg_);
 
     // Publish just the major changes to the graph
@@ -1359,6 +1352,9 @@ SlamKarto::updateMap()
     auto graph_update = slam_karto::computeGraphChanges(graph_msg_, graph_update_reference_);
     slam_karto::applyGraphUpdates(graph_update_reference_, graph_update);
     graph_updates_publisher_.publish(graph_update);
+
+    // Publish the Rviz visualization message
+    publishGraphVisualization(graph_msg_);
   }
 
   // Delete the temporary Karto map object
