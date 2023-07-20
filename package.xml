@@ -13,12 +13,12 @@
 
   <build_depend>eigen</build_depend>
   <build_depend>geometry_msgs</build_depend>
-  <build_depend>locus_cpp</build_depend>
   <build_depend>locus_msgs</build_depend>
   <build_depend>message_filters</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>open_karto</build_depend>
+  <build_depend>robot_mapping_tools</build_depend>
   <build_depend>rosconsole</build_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>sensor_msgs</build_depend>
@@ -32,12 +32,12 @@
 
   <run_depend>eigen</run_depend>
   <run_depend>geometry_msgs</run_depend>
-  <run_depend>locus_cpp</run_depend>
   <run_depend>locus_msgs</run_depend>
   <run_depend>message_filters</run_depend>
   <run_depend>message_runtime</run_depend>
   <run_depend>nav_msgs</run_depend>
   <run_depend>open_karto</run_depend>
+  <run_depend>robot_mapping_tools</run_depend>
   <run_depend>rosconsole</run_depend>
   <run_depend>roscpp</run_depend>
   <run_depend>sensor_msgs</run_depend>
