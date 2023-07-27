@@ -59,6 +59,8 @@
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
 
+#include <algorithm>
+#include <iterator>
 #include <map>
 #include <set>
 #include <string>
@@ -72,33 +74,38 @@ namespace robot_mapping_tools
 template <>
 std::vector<locus_msgs::Edge> getEdges(const karto::MapperGraph& graph)
 {
-  auto edges = std::vector<locus_msgs::Edge>();
-  for (const auto& edge : graph.GetEdges())
+  auto to_karto = [](const auto* edge_karto)
   {
     auto edge_msg = locus_msgs::Edge();
-    edge_msg.node_ids[0] = edge->GetSource()->GetObject()->GetUniqueId();
-    edge_msg.node_ids[1] = edge->GetTarget()->GetObject()->GetUniqueId();
-    edges.push_back(edge_msg);
-  }
-  return edges;
+    edge_msg.node_ids[0] = edge_karto->GetSource()->GetObject()->GetUniqueId();
+    edge_msg.node_ids[1] = edge_karto->GetTarget()->GetObject()->GetUniqueId();
+    return edge_msg;
+  };
+
+  auto edges_msg = std::vector<locus_msgs::Edge>();
+  const auto& edges_karto = graph.GetEdges();
+  std::transform(edges_karto.begin(), edges_karto.end(), std::back_inserter(edges_msg), to_karto);
+  return edges_msg;
 }
 
 template <>
 std::vector<locus_msgs::Node> getNodes(const karto::MapperGraph& graph)
 {
-  auto nodes = std::vector<locus_msgs::Node>();
+  auto to_karto = [](const auto* vertex)
+  {
+    auto node_msg = locus_msgs::Node();
+    node_msg.id = vertex->GetObject()->GetUniqueId();
+    node_msg.position.x = vertex->GetObject()->GetCorrectedPose().GetX();
+    node_msg.position.y = vertex->GetObject()->GetCorrectedPose().GetY();
+    return node_msg;
+  };
+
+  auto nodes_msg = std::vector<locus_msgs::Node>();
   for (const auto& [name, vertices] : graph.GetVertices())
   {
-    for (const auto& vertex : vertices)
-    {
-      auto node_msg = locus_msgs::Node();
-      node_msg.id = vertex->GetObject()->GetUniqueId();
-      node_msg.position.x = vertex->GetObject()->GetCorrectedPose().GetX();
-      node_msg.position.y = vertex->GetObject()->GetCorrectedPose().GetY();
-      nodes.push_back(node_msg);
-    }
+    std::transform(vertices.begin(), vertices.end(), std::back_inserter(nodes_msg), to_karto);
   }
-  return nodes;
+  return nodes_msg;
 }
 
 }  // namespace robot_mapping_tools
