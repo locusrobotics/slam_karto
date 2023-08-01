@@ -4,12 +4,12 @@ project(slam_karto)
 find_package(catkin REQUIRED
   COMPONENTS
     geometry_msgs
-    locus_cpp
     locus_msgs
     message_filters
     message_generation
     nav_msgs
     open_karto
+    robot_mapping_tools
     rosconsole
     roscpp
     sensor_msgs
@@ -51,7 +51,6 @@ include_directories(
 add_definitions(${EIGEN_DEFINITIONS})
 
 add_executable(slam_karto
-  src/graph_update.cpp
   src/loop_closure_callback.cpp
   src/slam_karto.cpp
   src/spa_solver.cpp
@@ -72,16 +71,4 @@ install(TARGETS slam_karto
 if(CATKIN_ENABLE_TESTING)
   find_package(roslint REQUIRED)
   find_package(rostest REQUIRED)
-
-  # Test for the GraphUpdate message utilities
-  catkin_add_gtest(test_graph_update
-    src/graph_update.cpp
-    test/test_graph_update.cpp
-  )
-  add_dependencies(test_graph_update
-    ${catkin_EXPORTED_TARGETS}
-  )
-  target_link_libraries(test_graph_update
-    ${catkin_LIBRARIES}
-  )
 endif()
