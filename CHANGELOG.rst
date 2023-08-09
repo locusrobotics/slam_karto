@@ -23,6 +23,11 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Stephen Williams, locus-services
 
+Forthcoming
+-----------
+* Remove locus_cpp dependency (`#9 <https://github.com/locusrobotics/slam_karto/issues/9>`_)
+* Contributors: Carlos Mendes
+
 0.18.2 (2023-06-13)
 -------------------
 * [RST-7375] Backport RST-7375 into Release 23.1 (`#6 <https://github.com/locusrobotics/slam_karto/issues/6>`_)
