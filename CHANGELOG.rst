@@ -23,8 +23,8 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Stephen Williams, locus-services
 
-Forthcoming
------------
+0.18.3 (2023-08-09)
+-------------------
 * Remove locus_cpp dependency (`#9 <https://github.com/locusrobotics/slam_karto/issues/9>`_)
 * Contributors: Carlos Mendes
 
