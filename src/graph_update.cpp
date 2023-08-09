@@ -6,7 +6,6 @@
 
 #include <slam_karto/graph_update.h>
 
-#include <locus_cpp/math.h>
 #include <locus_msgs/Edge.h>
 #include <locus_msgs/GraphStamped.h>
 #include <locus_msgs/GraphUpdate.h>
