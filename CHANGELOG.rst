@@ -40,8 +40,8 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Gary Servin, Stephen Williams, locus-services
 
-Forthcoming
------------
+0.19.0 (2023-09-25)
+-------------------
 * Tailor: Updating Jenkinsfile
 * Tailor: Updating Jenkinsfile
 * [RST-7622] Refactor slam_karto to use the common GraphPublisher object (#7)
