@@ -77,6 +77,46 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Carlos Mendes, Gary Servin, Stephen Williams, locus-services
 
+Forthcoming
+-----------
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* 0.19.0
+* Update changelogs
+* Tailor: Updating Jenkinsfile
+* [RST-7622] Refactor slam_karto to use the common GraphPublisher object (#7)
+* Add missing dependency (#8)
+* [RST-7375] Publish the SLAM graph as a structured message for Magellan (#5)
+  * Initial version of publishing the graph structure
+  * Add unit tests for applying updates to a graph
+  * Moved the rviz visualization publish inside the updateMap() function as well to avoid relocking the mutex
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Rst 7062 remove map local frame (#3)
+  * Removed local map frame
+  * Bugfix: correct graph vertex position as all the constraints are sensor to sensor wise
+  * Refactored to allow for zero offset origin correction
+  * Update src/slam_karto.cpp
+  Co-authored-by: Stephen Williams <stephen.vincent.williams@gmail.com>
+  ---------
+  Co-authored-by: Stephen Williams <stephen.vincent.williams@gmail.com>
+* 0.18.0
+* Update changelogs
+* 0.17.0
+* Update changelogs
+* [RST-6486] Compile using c++17 (#1)
+* [RST-5986] Filter out bad scans from slam_karto (#5)
+* Tailor: Updating Jenkinsfile
+* [RST-4712] Added checks for certain required relationships between parameters (#1)
+* [RST-4384] Only publish new transforms (#2)
+* [RST-4847] Add support for clockwise spinning lidars to slam_karto (#3)
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Contributors: Carlos Mendes, Gary Servin, Stephen Williams, locus-services
+
 0.16.0 (2020-10-02)
 -------------------
 * Tailor: Updating Jenkinsfile
