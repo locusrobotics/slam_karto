@@ -286,6 +286,7 @@ class SlamKarto
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
+    double max_laser_range_;  //!< Clip the lidar range to this distance
     bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
     bool first_scan_received_;  //!< Flag to track if the first scan was received
     double last_scan_time_;  //!< The timestamp of the most recently queued range scan
@@ -379,6 +380,7 @@ SlamKarto::SlamKarto() :
   private_nh_.param("pause_on_full_queue", pause_on_full_queue_, false);
   private_nh_.param("pause_navigation_percentage", pause_navigation_percentage_, 0.90);
   private_nh_.param("resume_navigation_percentage", resume_navigation_percentage_, 0.10);
+  private_nh_.param("max_laser_range", max_laser_range_, -1.0);
   pause_navigation_percentage_ = boost::algorithm::clamp(pause_navigation_percentage_, 0.0, 1.0);
   resume_navigation_percentage_ = boost::algorithm::clamp(resume_navigation_percentage_,
     0.0, pause_navigation_percentage_);
@@ -869,8 +871,19 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
       laser->SetAngularResolution(-scan->angle_increment);
       lasers_inverted_[scan->header.frame_id] = !inverse;
     }
-    // TODO: expose this, and many other parameters
-    //laser_->SetRangeThreshold(12.0);
+    if (max_laser_range_ > scan->range_max)
+    {
+      ROS_WARN_STREAM(
+        "Maximum laser range setting (" << max_laser_range_ << " m) exceeds the capabilities of the used Lidar ("
+                                        << scan->range_max << " m)");
+      max_laser_range_ = scan->range_max;
+    }
+    else if (max_laser_range_ < 0.0)
+    {
+      ROS_INFO_STREAM("Using the maximum range capability reported by the lidar: " << scan->range_max);
+      max_laser_range_ = scan->range_max;
+    }
+    laser->SetRangeThreshold(scan->range_max);
 
     // Store this laser device for later
     lasers_[scan->header.frame_id] = laser;
