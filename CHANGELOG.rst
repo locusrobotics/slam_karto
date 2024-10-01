@@ -77,8 +77,8 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Carlos Mendes, Gary Servin, Stephen Williams, locus-services
 
-Forthcoming
------------
+0.22.1 (2024-10-01)
+-------------------
 * Tailor: Updating Jenkinsfile
 * Contributors: locus-services
 
