@@ -537,6 +537,11 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
   if ((laser_count_ % throttle_scans_) != 0)
     return;
 
+  if (scan->ranges.empty())
+  {
+    ROS_WARN("Empty scan detected, returning");
+    return;
+  }
   static ros::Time last_map_update(0,0);
 
   // Check whether we know about this laser yet
