@@ -49,16 +49,16 @@ interval_sim 100  # simulation timestep in milliseconds
 
 
 window
-( 
-  size [ 745.000 448.000 ] 
+(
+  size [ 745.000 448.000 ]
 
   rotate [ 0.000 -1.560 ]
-  scale 18.806 
+  scale 18.806
 )
 
 # load an environment bitmap
 floorplan
-( 
+(
   name "willow"
   bitmap "../maps/willow-full-0.05.pgm"
   size [58.25 47.25 1.0]
