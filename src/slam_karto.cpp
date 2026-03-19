@@ -110,6 +110,34 @@ std::vector<locus_msgs::Node> getNodes(const karto::MapperGraph& graph)
 
 }  // namespace robot_mapping_tools
 
+class SlamKartoLoopClosureListener : public karto::MapperLoopClosureListener
+{
+public:
+  /**
+   * Called when checking for loop closures
+   */
+  inline void LoopClosureCheck(const std::string& rInfo) override
+  {
+    ROS_INFO_STREAM("Loop Closure Check:\n" << rInfo);
+  };
+
+  /**
+   * Called when loop closure is starting
+   */
+  void BeginLoopClosure(const std::string& rInfo) override
+  {
+    ROS_INFO_STREAM("Begin Loop Closure:\n" << rInfo);
+  };
+
+  /**
+   * Called when loop closure is over
+   */
+  virtual void EndLoopClosure(const std::string& rInfo) override
+  {
+    ROS_INFO_STREAM("End Loop Closure:\n" << rInfo);
+  };
+};
+
 class SlamKarto
 {
   public:
@@ -270,6 +298,7 @@ class SlamKarto
     boost::mutex mapper_mutex_;
 
     // Karto bookkeeping
+    SlamKartoLoopClosureListener loop_closure_listener_;
     karto::Mapper* mapper_;
     karto::Dataset* dataset_;
     SpaSolver* solver_;
@@ -450,9 +479,21 @@ SlamKarto::SlamKarto() :
   if(private_nh_.getParam("scan_buffer_maximum_scan_distance", scan_buffer_maximum_scan_distance))
     mapper_->setParamScanBufferMaximumScanDistance(scan_buffer_maximum_scan_distance);
 
+  double running_match_minimum_response_fine;
+  if(private_nh_.getParam("running_match_minimum_response_fine", running_match_minimum_response_fine))
+    mapper_->setParamRunningMatchMinimumResponseFine(running_match_minimum_response_fine);
+
+  double running_match_maximum_variance_fine;
+  if(private_nh_.getParam("running_match_maximum_variance_fine", running_match_maximum_variance_fine))
+    mapper_->setParamRunningMatchMaximumVarianceFine(running_match_maximum_variance_fine);
+
   double link_match_minimum_response_fine;
   if(private_nh_.getParam("link_match_minimum_response_fine", link_match_minimum_response_fine))
     mapper_->setParamLinkMatchMinimumResponseFine(link_match_minimum_response_fine);
+
+  double link_match_maximum_variance_fine;
+  if(private_nh_.getParam("link_match_maximum_variance_fine", link_match_maximum_variance_fine))
+    mapper_->setParamLinkMatchMaximumVarianceFine(link_match_maximum_variance_fine);
 
   double link_scan_maximum_distance;
   if(private_nh_.getParam("link_scan_maximum_distance", link_scan_maximum_distance))
@@ -613,6 +654,13 @@ SlamKarto::SlamKarto() :
 
   solver_->SetSpaMethod(spa_method_);
   mapper_->SetScanSolver(solver_);
+  // Register a listener
+  bool enable_scan_match_logs;
+  private_nh_.getParam("enable_scan_match_logs", enable_scan_match_logs);
+  if (enable_scan_match_logs)
+  {
+    mapper_->AddListener(&loop_closure_listener_);
+  }
 
   // Create a thread to periodically publish the latest map->odom
   // transform; it needs to go out regularly, uninterrupted by potentially
