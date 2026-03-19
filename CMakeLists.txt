@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(slam_karto)
 
+# You only need to export packages that are used by exported libraries/headers.
+# This package only exports some messages, so it only needs to export the
+# message dependencies. This confuses catkin_lint. Disable that check.
+#catkin_lint: ignore missing_catkin_depend
+
 find_package(catkin REQUIRED
   COMPONENTS
     geometry_msgs

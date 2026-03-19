@@ -60,4 +60,3 @@ private:
 };
 
 #endif // KARTO_SPASOLVER_H
-
