@@ -49,9 +49,10 @@ add_compile_options(-Wall)
 
 include_directories(
   include
-  ${Boost_INCLUDE_DIRS}
-  ${catkin_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIRS}
+  SYSTEM
+    ${Boost_INCLUDE_DIRS}
+    ${catkin_INCLUDE_DIRS}
+    ${EIGEN3_INCLUDE_DIRS}
 )
 add_definitions(${EIGEN_DEFINITIONS})
 
