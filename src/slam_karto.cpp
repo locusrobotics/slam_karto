@@ -60,6 +60,7 @@
 #include <boost/thread/condition.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <iterator>
 #include <map>
 #include <set>
@@ -315,7 +316,7 @@ class SlamKarto
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
-    bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
+    std::atomic_bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
     bool first_scan_received_;  //!< Flag to track if the first scan was received
     double last_scan_time_;  //!< The timestamp of the most recently queued range scan
     karto::Pose2 last_scan_pose_;  //!< The odom frame pose of the most recently queued range scan
@@ -655,7 +656,7 @@ SlamKarto::SlamKarto() :
   solver_->SetSpaMethod(spa_method_);
   mapper_->SetScanSolver(solver_);
   // Register a listener
-  bool enable_scan_match_logs;
+  bool enable_scan_match_logs = false;
   private_nh_.getParam("enable_scan_match_logs", enable_scan_match_logs);
   if (enable_scan_match_logs)
   {
@@ -764,7 +765,11 @@ SlamKarto::optimizationLoop()
       // Update the map->odom transform using this scan's optimized pose
       updateMapToOdomTransform(range_scan);
       // Add the localized range scan to the dataset (for memory management)
-      dataset_->Add(range_scan);
+      // Lock mapper_mutex_ because dataset_ is also modified by getLaser() on the ROS callback thread
+      {
+        boost::mutex::scoped_lock lock(mapper_mutex_);
+        dataset_->Add(range_scan);
+      }
       // Mark the map as needing to be updated
       {
         boost::mutex::scoped_lock lock(map_mutex_);
@@ -924,7 +929,11 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     lasers_[scan->header.frame_id] = laser;
 
     // Add it to the dataset, which seems to be necessary
-    dataset_->Add(laser);
+    // Lock mapper_mutex_ because dataset_ is also modified by the optimization thread
+    {
+      boost::mutex::scoped_lock lock(mapper_mutex_);
+      dataset_->Add(laser);
+    }
   }
 
   return lasers_[scan->header.frame_id];
@@ -1046,6 +1055,7 @@ void
 SlamKarto::publishQueueVisualization()
 {
   // Publish queue status
+  boost::mutex::scoped_lock lock(scan_queue_mutex_);
   if (scan_queue_.capacity() > 1 && scan_queue_visualization_publisher_.getNumSubscribers() > 0)
   {
     visualization_msgs::Marker queue_size;
@@ -1163,14 +1173,17 @@ void
 SlamKarto::mapLoop(double map_update_interval)
 {
   // Initialize the map information
-  map_.map.info.resolution = resolution_;
-  map_.map.info.origin.position.x = 0.0;
-  map_.map.info.origin.position.y = 0.0;
-  map_.map.info.origin.position.z = 0.0;
-  map_.map.info.origin.orientation.x = 0.0;
-  map_.map.info.origin.orientation.y = 0.0;
-  map_.map.info.origin.orientation.z = 0.0;
-  map_.map.info.origin.orientation.w = 1.0;
+  {
+    boost::mutex::scoped_lock lock(map_mutex_);
+    map_.map.info.resolution = resolution_;
+    map_.map.info.origin.position.x = 0.0;
+    map_.map.info.origin.position.y = 0.0;
+    map_.map.info.origin.position.z = 0.0;
+    map_.map.info.origin.orientation.x = 0.0;
+    map_.map.info.origin.orientation.y = 0.0;
+    map_.map.info.origin.orientation.z = 0.0;
+    map_.map.info.origin.orientation.w = 1.0;
+  }
 
   // If the map update interval is set to zero, never build a map
   if (map_update_interval <= 0)
