@@ -344,6 +344,10 @@ namespace
  */
 double forceEvenOrOdd(const double dimension, const double resolution, const bool should_be_even)
 {
+  if (resolution <= 1.0e-9)
+  {
+    throw std::invalid_argument("Resolution must be greater than zero");
+  }
   double cells = dimension / resolution;
   double cells_rounded = std::round(dimension / resolution);
   bool exact_multiple = (std::abs(cells - cells_rounded) < 1.0e-6);
@@ -526,11 +530,11 @@ SlamKarto::SlamKarto() :
 
   // Setting Correlation Parameters from the Parameter Server
 
-  double correlation_search_space_dimension;
+  double correlation_search_space_dimension = mapper_->getParamCorrelationSearchSpaceDimension();
   if(private_nh_.getParam("correlation_search_space_dimension", correlation_search_space_dimension))
     mapper_->setParamCorrelationSearchSpaceDimension(correlation_search_space_dimension);
 
-  double correlation_search_space_resolution;
+  double correlation_search_space_resolution = mapper_->getParamCorrelationSearchSpaceResolution();
   if(private_nh_.getParam("correlation_search_space_resolution", correlation_search_space_resolution))
     mapper_->setParamCorrelationSearchSpaceResolution(correlation_search_space_resolution);
 
@@ -544,9 +548,10 @@ SlamKarto::SlamKarto() :
       "'correlation_search_space_resolution'. Adjusting the value of 'correlation_search_space_dimension' from "
       << correlation_search_space_dimension << " to " << new_correlation_search_space_dimension);
     correlation_search_space_dimension = new_correlation_search_space_dimension;
+    mapper_->setParamCorrelationSearchSpaceDimension(correlation_search_space_dimension);
   }
 
-  double correlation_search_space_smear_deviation;
+  double correlation_search_space_smear_deviation = mapper_->getParamCorrelationSearchSpaceSmearDeviation();
   if(private_nh_.getParam("correlation_search_space_smear_deviation", correlation_search_space_smear_deviation))
     mapper_->setParamCorrelationSearchSpaceSmearDeviation(correlation_search_space_smear_deviation);
 
@@ -560,14 +565,15 @@ SlamKarto::SlamKarto() :
       "'correlation_search_space_resolution'. Adjusting the value of 'correlation_search_space_smear_deviation' from "
       << correlation_search_space_smear_deviation << " to " << new_correlation_search_space_smear_deviation);
     correlation_search_space_smear_deviation = new_correlation_search_space_smear_deviation;
+    mapper_->setParamCorrelationSearchSpaceSmearDeviation(correlation_search_space_smear_deviation);
   }
 
   // Setting Correlation Parameters, Loop Closure Parameters from the Parameter Server
-  double loop_search_space_dimension;
+  double loop_search_space_dimension = mapper_->getParamLoopSearchSpaceDimension();
   if(private_nh_.getParam("loop_search_space_dimension", loop_search_space_dimension))
     mapper_->setParamLoopSearchSpaceDimension(loop_search_space_dimension);
 
-  double loop_search_space_resolution;
+  double loop_search_space_resolution = mapper_->getParamLoopSearchSpaceResolution();
   if(private_nh_.getParam("loop_search_space_resolution", loop_search_space_resolution))
     mapper_->setParamLoopSearchSpaceResolution(loop_search_space_resolution);
 
@@ -581,9 +587,10 @@ SlamKarto::SlamKarto() :
       "the value of 'loop_search_space_dimension' from "
       << loop_search_space_dimension << " to " << new_loop_search_space_dimension);
     loop_search_space_dimension = new_loop_search_space_dimension;
+    mapper_->setParamLoopSearchSpaceDimension(loop_search_space_dimension);
   }
 
-  double loop_search_space_smear_deviation;
+  double loop_search_space_smear_deviation = mapper_->getParamLoopSearchSpaceSmearDeviation();
   if(private_nh_.getParam("loop_search_space_smear_deviation", loop_search_space_smear_deviation))
     mapper_->setParamLoopSearchSpaceSmearDeviation(loop_search_space_smear_deviation);
 
@@ -597,6 +604,7 @@ SlamKarto::SlamKarto() :
       "Adjusting the value of 'loop_search_space_smear_deviation' from "
       << loop_search_space_smear_deviation << " to " << new_loop_search_space_smear_deviation);
     loop_search_space_smear_deviation = new_loop_search_space_smear_deviation;
+    mapper_->setParamLoopSearchSpaceSmearDeviation(loop_search_space_smear_deviation);
   }
 
   // Setting Scan Matcher Parameters from the Parameter Server
