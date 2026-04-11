@@ -826,16 +826,14 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     double yaw = tf::getYaw(laser_pose.getRotation());
 
     std::fprintf(stderr,
-           "[slam_karto] laser %s pose wrt base: %.3f %.3f %.3f\n",
+           "[*slam_karto*] laser %s pose wrt base: %.3f %.3f %.3f\n",
            scan->header.frame_id.c_str(),
            laser_pose.getOrigin().x(),
            laser_pose.getOrigin().y(),
            yaw);
-    ROS_INFO("laser %s pose wrt base: %.3f %.3f %.3f",
-      scan->header.frame_id.c_str(),
-      laser_pose.getOrigin().x(),
-      laser_pose.getOrigin().y(),
-      yaw);
+    ROS_INFO_STREAM(
+      "laser " << scan->header.frame_id << " pose wrt base: " << laser_pose.getOrigin().x() << " "
+               << laser_pose.getOrigin().y() << " " << yaw);
     // To account for lasers that are mounted upside-down,
     // we create a point 1m above the laser and transform it into the laser frame
     // if the point's z-value is <=0, it is upside-down
