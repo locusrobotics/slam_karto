@@ -60,6 +60,7 @@
 #include <boost/thread/condition.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <iterator>
 #include <map>
 #include <set>
@@ -1491,6 +1492,20 @@ int
 main(int argc, char** argv)
 {
   ros::init(argc, argv, "slam_karto");
+
+  const std::size_t compile_time_mapper_size = sizeof(karto::Mapper);
+  const std::size_t runtime_mapper_size = open_karto_mapper_abi_sizeof_mapper();
+  if (compile_time_mapper_size == runtime_mapper_size)
+  {
+    ROS_INFO_STREAM("open_karto Mapper ABI canary matched (compile-time size = "
+                    << compile_time_mapper_size << ", runtime size = " << runtime_mapper_size << ")");
+  }
+  else
+  {
+    ROS_ERROR_STREAM("open_karto Mapper ABI canary mismatch detected (compile-time size = "
+                     << compile_time_mapper_size << ", runtime size = " << runtime_mapper_size
+                     << "). This suggests mixed/stale binaries are loaded.");
+  }
 
   SlamKarto kn;
 
