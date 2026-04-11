@@ -62,6 +62,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <cstdio>
 #include <iterator>
 #include <map>
 #include <set>
@@ -817,18 +818,18 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     }
     catch(const tf::TransformException& e)
     {
-      ROS_WARN("Failed to compute laser pose, aborting initialization (%s)",
-	       e.what());
+      std::fprintf(stderr, "[slam_karto] Failed to compute laser pose, aborting initialization (%s)\n", e.what());
       return NULL;
     }
 
     double yaw = tf::getYaw(laser_pose.getRotation());
 
-    ROS_INFO("laser %s's pose wrt base: %.3f %.3f %.3f",
-	     scan->header.frame_id.c_str(),
-	     laser_pose.getOrigin().x(),
-	     laser_pose.getOrigin().y(),
-	     yaw);
+    std::fprintf(stderr,
+           "[slam_karto] laser %s pose wrt base: %.3f %.3f %.3f\n",
+           scan->header.frame_id.c_str(),
+           laser_pose.getOrigin().x(),
+           laser_pose.getOrigin().y(),
+           yaw);
     // To account for lasers that are mounted upside-down,
     // we create a point 1m above the laser and transform it into the laser frame
     // if the point's z-value is <=0, it is upside-down
@@ -840,17 +841,19 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     try
     {
       tf_.transformPoint(scan->header.frame_id, up, up);
-      ROS_DEBUG("Z-Axis in sensor frame: %.3f", up.z());
+      std::fprintf(stderr, "[slam_karto] Z-Axis in sensor frame: %.3f\n", up.z());
     }
     catch (const tf::TransformException& e)
     {
-      ROS_WARN("Unable to determine orientation of laser: %s", e.what());
+      std::fprintf(stderr, "[slam_karto] Unable to determine orientation of laser: %s\n", e.what());
       return NULL;
     }
 
     bool inverse = lasers_inverted_[scan->header.frame_id] = up.z() <= 0;
     if (inverse)
-      ROS_INFO("laser is mounted upside-down");
+    {
+      std::fprintf(stderr, "[slam_karto] laser is mounted upside-down\n");
+    }
 
 
     // Create a laser range finder device and copy in data from the first
