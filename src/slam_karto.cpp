@@ -834,7 +834,12 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     // ROS_INFO_STREAM(
     //   "laser " << scan->header.frame_id << " pose wrt base: " << laser_pose.getOrigin().x() << " "
     //            << laser_pose.getOrigin().y() << " " << yaw);
-    ROS_INFO_STREAM("laser");
+    ROS_INFO_STREAM("laser:");
+    ROS_INFO_STREAM("  frame: " << scan->header.frame_id);
+    ROS_INFO_STREAM("  x: " << laser_pose.getOrigin().x());
+    ROS_INFO_STREAM("  y: " << laser_pose.getOrigin().y());
+    ROS_INFO_STREAM("  yaw: " << yaw);
+
     // To account for lasers that are mounted upside-down,
     // we create a point 1m above the laser and transform it into the laser frame
     // if the point's z-value is <=0, it is upside-down
