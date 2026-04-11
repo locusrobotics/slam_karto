@@ -60,7 +60,6 @@
 #include <boost/thread/condition.hpp>
 
 #include <algorithm>
-#include <atomic>
 #include <iterator>
 #include <map>
 #include <set>
@@ -110,34 +109,6 @@ std::vector<locus_msgs::Node> getNodes(const karto::MapperGraph& graph)
 }
 
 }  // namespace robot_mapping_tools
-
-class SlamKartoLoopClosureListener : public karto::MapperLoopClosureListener
-{
-public:
-  /**
-   * Called when checking for loop closures
-   */
-  inline void LoopClosureCheck(const std::string& rInfo) override
-  {
-    ROS_INFO_STREAM("Loop Closure Check:\n" << rInfo);
-  };
-
-  /**
-   * Called when loop closure is starting
-   */
-  void BeginLoopClosure(const std::string& rInfo) override
-  {
-    ROS_INFO_STREAM("Begin Loop Closure:\n" << rInfo);
-  };
-
-  /**
-   * Called when loop closure is over
-   */
-  virtual void EndLoopClosure(const std::string& rInfo) override
-  {
-    ROS_INFO_STREAM("End Loop Closure:\n" << rInfo);
-  };
-};
 
 class SlamKarto
 {
@@ -299,7 +270,6 @@ class SlamKarto
     boost::mutex mapper_mutex_;
 
     // Karto bookkeeping
-    SlamKartoLoopClosureListener loop_closure_listener_;
     karto::Mapper* mapper_;
     karto::Dataset* dataset_;
     SpaSolver* solver_;
@@ -316,7 +286,7 @@ class SlamKarto
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
-    std::atomic_bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
+    bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
     bool first_scan_received_;  //!< Flag to track if the first scan was received
     double last_scan_time_;  //!< The timestamp of the most recently queued range scan
     karto::Pose2 last_scan_pose_;  //!< The odom frame pose of the most recently queued range scan
@@ -344,10 +314,6 @@ namespace
  */
 double forceEvenOrOdd(const double dimension, const double resolution, const bool should_be_even)
 {
-  if (resolution <= 1.0e-9)
-  {
-    throw std::invalid_argument("Resolution must be greater than zero");
-  }
   double cells = dimension / resolution;
   double cells_rounded = std::round(dimension / resolution);
   bool exact_multiple = (std::abs(cells - cells_rounded) < 1.0e-6);
@@ -484,21 +450,9 @@ SlamKarto::SlamKarto() :
   if(private_nh_.getParam("scan_buffer_maximum_scan_distance", scan_buffer_maximum_scan_distance))
     mapper_->setParamScanBufferMaximumScanDistance(scan_buffer_maximum_scan_distance);
 
-  double running_match_minimum_response_fine;
-  if(private_nh_.getParam("running_match_minimum_response_fine", running_match_minimum_response_fine))
-    mapper_->setParamRunningMatchMinimumResponseFine(running_match_minimum_response_fine);
-
-  double running_match_maximum_variance_fine;
-  if(private_nh_.getParam("running_match_maximum_variance_fine", running_match_maximum_variance_fine))
-    mapper_->setParamRunningMatchMaximumVarianceFine(running_match_maximum_variance_fine);
-
   double link_match_minimum_response_fine;
   if(private_nh_.getParam("link_match_minimum_response_fine", link_match_minimum_response_fine))
     mapper_->setParamLinkMatchMinimumResponseFine(link_match_minimum_response_fine);
-
-  double link_match_maximum_variance_fine;
-  if(private_nh_.getParam("link_match_maximum_variance_fine", link_match_maximum_variance_fine))
-    mapper_->setParamLinkMatchMaximumVarianceFine(link_match_maximum_variance_fine);
 
   double link_scan_maximum_distance;
   if(private_nh_.getParam("link_scan_maximum_distance", link_scan_maximum_distance))
@@ -530,11 +484,11 @@ SlamKarto::SlamKarto() :
 
   // Setting Correlation Parameters from the Parameter Server
 
-  double correlation_search_space_dimension = mapper_->getParamCorrelationSearchSpaceDimension();
+  double correlation_search_space_dimension;
   if(private_nh_.getParam("correlation_search_space_dimension", correlation_search_space_dimension))
     mapper_->setParamCorrelationSearchSpaceDimension(correlation_search_space_dimension);
 
-  double correlation_search_space_resolution = mapper_->getParamCorrelationSearchSpaceResolution();
+  double correlation_search_space_resolution;
   if(private_nh_.getParam("correlation_search_space_resolution", correlation_search_space_resolution))
     mapper_->setParamCorrelationSearchSpaceResolution(correlation_search_space_resolution);
 
@@ -548,10 +502,9 @@ SlamKarto::SlamKarto() :
       "'correlation_search_space_resolution'. Adjusting the value of 'correlation_search_space_dimension' from "
       << correlation_search_space_dimension << " to " << new_correlation_search_space_dimension);
     correlation_search_space_dimension = new_correlation_search_space_dimension;
-    mapper_->setParamCorrelationSearchSpaceDimension(correlation_search_space_dimension);
   }
 
-  double correlation_search_space_smear_deviation = mapper_->getParamCorrelationSearchSpaceSmearDeviation();
+  double correlation_search_space_smear_deviation;
   if(private_nh_.getParam("correlation_search_space_smear_deviation", correlation_search_space_smear_deviation))
     mapper_->setParamCorrelationSearchSpaceSmearDeviation(correlation_search_space_smear_deviation);
 
@@ -565,15 +518,14 @@ SlamKarto::SlamKarto() :
       "'correlation_search_space_resolution'. Adjusting the value of 'correlation_search_space_smear_deviation' from "
       << correlation_search_space_smear_deviation << " to " << new_correlation_search_space_smear_deviation);
     correlation_search_space_smear_deviation = new_correlation_search_space_smear_deviation;
-    mapper_->setParamCorrelationSearchSpaceSmearDeviation(correlation_search_space_smear_deviation);
   }
 
   // Setting Correlation Parameters, Loop Closure Parameters from the Parameter Server
-  double loop_search_space_dimension = mapper_->getParamLoopSearchSpaceDimension();
+  double loop_search_space_dimension;
   if(private_nh_.getParam("loop_search_space_dimension", loop_search_space_dimension))
     mapper_->setParamLoopSearchSpaceDimension(loop_search_space_dimension);
 
-  double loop_search_space_resolution = mapper_->getParamLoopSearchSpaceResolution();
+  double loop_search_space_resolution;
   if(private_nh_.getParam("loop_search_space_resolution", loop_search_space_resolution))
     mapper_->setParamLoopSearchSpaceResolution(loop_search_space_resolution);
 
@@ -587,10 +539,9 @@ SlamKarto::SlamKarto() :
       "the value of 'loop_search_space_dimension' from "
       << loop_search_space_dimension << " to " << new_loop_search_space_dimension);
     loop_search_space_dimension = new_loop_search_space_dimension;
-    mapper_->setParamLoopSearchSpaceDimension(loop_search_space_dimension);
   }
 
-  double loop_search_space_smear_deviation = mapper_->getParamLoopSearchSpaceSmearDeviation();
+  double loop_search_space_smear_deviation;
   if(private_nh_.getParam("loop_search_space_smear_deviation", loop_search_space_smear_deviation))
     mapper_->setParamLoopSearchSpaceSmearDeviation(loop_search_space_smear_deviation);
 
@@ -604,7 +555,6 @@ SlamKarto::SlamKarto() :
       "Adjusting the value of 'loop_search_space_smear_deviation' from "
       << loop_search_space_smear_deviation << " to " << new_loop_search_space_smear_deviation);
     loop_search_space_smear_deviation = new_loop_search_space_smear_deviation;
-    mapper_->setParamLoopSearchSpaceSmearDeviation(loop_search_space_smear_deviation);
   }
 
   // Setting Scan Matcher Parameters from the Parameter Server
@@ -663,13 +613,6 @@ SlamKarto::SlamKarto() :
 
   solver_->SetSpaMethod(spa_method_);
   mapper_->SetScanSolver(solver_);
-  // Register a listener
-  bool enable_scan_match_logs = false;
-  private_nh_.getParam("enable_scan_match_logs", enable_scan_match_logs);
-  if (enable_scan_match_logs)
-  {
-    mapper_->AddListener(&loop_closure_listener_);
-  }
 
   // Create a thread to periodically publish the latest map->odom
   // transform; it needs to go out regularly, uninterrupted by potentially
@@ -773,11 +716,7 @@ SlamKarto::optimizationLoop()
       // Update the map->odom transform using this scan's optimized pose
       updateMapToOdomTransform(range_scan);
       // Add the localized range scan to the dataset (for memory management)
-      // Lock mapper_mutex_ because dataset_ is also modified by getLaser() on the ROS callback thread
-      {
-        boost::mutex::scoped_lock lock(mapper_mutex_);
-        dataset_->Add(range_scan);
-      }
+      dataset_->Add(range_scan);
       // Mark the map as needing to be updated
       {
         boost::mutex::scoped_lock lock(map_mutex_);
@@ -937,11 +876,7 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     lasers_[scan->header.frame_id] = laser;
 
     // Add it to the dataset, which seems to be necessary
-    // Lock mapper_mutex_ because dataset_ is also modified by the optimization thread
-    {
-      boost::mutex::scoped_lock lock(mapper_mutex_);
-      dataset_->Add(laser);
-    }
+    dataset_->Add(laser);
   }
 
   return lasers_[scan->header.frame_id];
@@ -1063,7 +998,6 @@ void
 SlamKarto::publishQueueVisualization()
 {
   // Publish queue status
-  boost::mutex::scoped_lock lock(scan_queue_mutex_);
   if (scan_queue_.capacity() > 1 && scan_queue_visualization_publisher_.getNumSubscribers() > 0)
   {
     visualization_msgs::Marker queue_size;
@@ -1181,17 +1115,14 @@ void
 SlamKarto::mapLoop(double map_update_interval)
 {
   // Initialize the map information
-  {
-    boost::mutex::scoped_lock lock(map_mutex_);
-    map_.map.info.resolution = resolution_;
-    map_.map.info.origin.position.x = 0.0;
-    map_.map.info.origin.position.y = 0.0;
-    map_.map.info.origin.position.z = 0.0;
-    map_.map.info.origin.orientation.x = 0.0;
-    map_.map.info.origin.orientation.y = 0.0;
-    map_.map.info.origin.orientation.z = 0.0;
-    map_.map.info.origin.orientation.w = 1.0;
-  }
+  map_.map.info.resolution = resolution_;
+  map_.map.info.origin.position.x = 0.0;
+  map_.map.info.origin.position.y = 0.0;
+  map_.map.info.origin.position.z = 0.0;
+  map_.map.info.origin.orientation.x = 0.0;
+  map_.map.info.origin.orientation.y = 0.0;
+  map_.map.info.origin.orientation.z = 0.0;
+  map_.map.info.origin.orientation.w = 1.0;
 
   // If the map update interval is set to zero, never build a map
   if (map_update_interval <= 0)
