@@ -60,6 +60,7 @@
 #include <boost/thread/condition.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <iterator>
 #include <map>
@@ -287,7 +288,7 @@ class SlamKarto
     tf::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
-    bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
+    std::atomic_bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
     bool first_scan_received_;  //!< Flag to track if the first scan was received
     double last_scan_time_;  //!< The timestamp of the most recently queued range scan
     karto::Pose2 last_scan_pose_;  //!< The odom frame pose of the most recently queued range scan
@@ -717,7 +718,10 @@ SlamKarto::optimizationLoop()
       // Update the map->odom transform using this scan's optimized pose
       updateMapToOdomTransform(range_scan);
       // Add the localized range scan to the dataset (for memory management)
-      dataset_->Add(range_scan);
+      {
+        boost::mutex::scoped_lock lock(mapper_mutex_);
+        dataset_->Add(range_scan);
+      }
       // Mark the map as needing to be updated
       {
         boost::mutex::scoped_lock lock(map_mutex_);
@@ -877,7 +881,10 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     lasers_[scan->header.frame_id] = laser;
 
     // Add it to the dataset, which seems to be necessary
-    dataset_->Add(laser);
+    {
+      boost::mutex::scoped_lock lock(mapper_mutex_);
+      dataset_->Add(laser);
+    }
   }
 
   return lasers_[scan->header.frame_id];
@@ -999,6 +1006,7 @@ void
 SlamKarto::publishQueueVisualization()
 {
   // Publish queue status
+  boost::mutex::scoped_lock lock(scan_queue_mutex_);
   if (scan_queue_.capacity() > 1 && scan_queue_visualization_publisher_.getNumSubscribers() > 0)
   {
     visualization_msgs::Marker queue_size;
@@ -1031,6 +1039,10 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
 {
   auto is_scan_valid = [](const sensor_msgs::LaserScan& scan)
   {
+    if (std::abs(scan.angle_increment) < 1.0e-9)
+    {
+      return false;
+    }
     auto expected_scans = static_cast<int>(std::round((scan.angle_max - scan.angle_min) / scan.angle_increment)) + 1;
     return (std::abs(scan.angle_increment) < 0.1) &&
            (std::abs(expected_scans - static_cast<int>(scan.ranges.size())) <= 1);
