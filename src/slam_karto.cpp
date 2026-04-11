@@ -616,7 +616,7 @@ SlamKarto::SlamKarto() :
   solver_->SetSpaMethod(spa_method_);
   mapper_->SetScanSolver(solver_);
 
-  // Initialize the map information
+  // Initialize the map information before any of the threads are started
   map_.map.info.resolution = resolution_;
   map_.map.info.origin.position.x = 0.0;
   map_.map.info.origin.position.y = 0.0;
@@ -1517,6 +1517,8 @@ main(int argc, char** argv)
 
   const std::size_t compile_time_mapper_size = sizeof(karto::Mapper);
   const std::size_t runtime_mapper_size = open_karto_mapper_abi_sizeof_mapper();
+  const std::size_t compile_time_layout_fingerprint = karto::Mapper::AbiLayoutFingerprint();
+  const std::size_t runtime_layout_fingerprint = open_karto_mapper_abi_layout_fingerprint();
   if (compile_time_mapper_size == runtime_mapper_size)
   {
     ROS_INFO_STREAM("open_karto Mapper ABI canary matched (compile-time size = "
@@ -1527,6 +1529,20 @@ main(int argc, char** argv)
     ROS_ERROR_STREAM("open_karto Mapper ABI canary mismatch detected (compile-time size = "
                      << compile_time_mapper_size << ", runtime size = " << runtime_mapper_size
                      << "). This suggests mixed/stale binaries are loaded.");
+  }
+
+  if (compile_time_layout_fingerprint == runtime_layout_fingerprint)
+  {
+    ROS_INFO_STREAM("open_karto Mapper layout fingerprint canary matched (compile-time = 0x"
+                    << std::hex << compile_time_layout_fingerprint << ", runtime = 0x"
+                    << runtime_layout_fingerprint << std::dec << ")");
+  }
+  else
+  {
+    ROS_ERROR_STREAM("open_karto Mapper layout fingerprint canary mismatch detected (compile-time = 0x"
+                     << std::hex << compile_time_layout_fingerprint << ", runtime = 0x"
+                     << runtime_layout_fingerprint << std::dec
+                     << "). This strongly suggests mixed/stale binaries or ABI drift.");
   }
 
   SlamKarto kn;
