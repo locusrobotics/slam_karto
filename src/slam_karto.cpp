@@ -616,6 +616,16 @@ SlamKarto::SlamKarto() :
   solver_->SetSpaMethod(spa_method_);
   mapper_->SetScanSolver(solver_);
 
+  // Initialize the map information
+  map_.map.info.resolution = resolution_;
+  map_.map.info.origin.position.x = 0.0;
+  map_.map.info.origin.position.y = 0.0;
+  map_.map.info.origin.position.z = 0.0;
+  map_.map.info.origin.orientation.x = 0.0;
+  map_.map.info.origin.orientation.y = 0.0;
+  map_.map.info.origin.orientation.z = 0.0;
+  map_.map.info.origin.orientation.w = 1.0;
+
   // Create a thread to periodically publish the latest map->odom
   // transform; it needs to go out regularly, uninterrupted by potentially
   // long periods of computation in our main loop.
@@ -1127,15 +1137,15 @@ SlamKarto::setMapTransformCallback(
 void
 SlamKarto::mapLoop(double map_update_interval)
 {
-  // Initialize the map information
-  map_.map.info.resolution = resolution_;
-  map_.map.info.origin.position.x = 0.0;
-  map_.map.info.origin.position.y = 0.0;
-  map_.map.info.origin.position.z = 0.0;
-  map_.map.info.origin.orientation.x = 0.0;
-  map_.map.info.origin.orientation.y = 0.0;
-  map_.map.info.origin.orientation.z = 0.0;
-  map_.map.info.origin.orientation.w = 1.0;
+  // // Initialize the map information
+  // map_.map.info.resolution = resolution_;
+  // map_.map.info.origin.position.x = 0.0;
+  // map_.map.info.origin.position.y = 0.0;
+  // map_.map.info.origin.position.z = 0.0;
+  // map_.map.info.origin.orientation.x = 0.0;
+  // map_.map.info.origin.orientation.y = 0.0;
+  // map_.map.info.origin.orientation.z = 0.0;
+  // map_.map.info.origin.orientation.w = 1.0;
 
   // If the map update interval is set to zero, never build a map
   if (map_update_interval <= 0)
