@@ -156,7 +156,7 @@ class SlamKarto
 
   private:
     // bool getOdomPose(karto::Pose2& karto_pose, const ros::Time& t);
-    // karto::LaserRangeFinder* getLaser(const sensor_msgs::LaserScan::ConstPtr& scan);
+    karto::LaserRangeFinder* getLaser(const sensor_msgs::LaserScan::ConstPtr& scan);
 
     // /**
     //  * @brief Convert a ROS sensor_msgs::Laserscan into a karto::LocalizedRangeScan
@@ -291,7 +291,7 @@ class SlamKarto
     karto::Dataset* dataset_;
     // SpaSolver* solver_;
     // slam_karto::LoopClosureCallback* loop_closure_pauser_;  //!< Listen to loop closure events from karto and pause nav
-    // std::map<std::string, karto::LaserRangeFinder*> lasers_;
+    std::map<std::string, karto::LaserRangeFinder*> lasers_;
     std::map<std::string, bool> lasers_inverted_;
     // Internal state
     bool got_map_;
@@ -904,92 +904,92 @@ SlamKarto::publishTransform()
   }
 }
 
-// karto::LaserRangeFinder*
-// SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
-// {
-//   ROS_INFO("Inside call to getLaser()");
-//   // Check whether we know about this laser yet
-//   if(lasers_.find(scan->header.frame_id) == lasers_.end())
-//   {
-//     // New laser; need to create a Karto device for it.
+karto::LaserRangeFinder*
+SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
+{
+  ROS_INFO("Inside call to getLaser()");
+  // Check whether we know about this laser yet
+  if(lasers_.find(scan->header.frame_id) == lasers_.end())
+  {
+    // New laser; need to create a Karto device for it.
 
-//     // Get the laser's pose, relative to base.
-//     tf2::Stamped<tf2::Transform> laser_pose;
-//     try
-//     {
-//       auto base_to_laser_msg =
-//         tf_buffer_->lookupTransform(base_frame_, scan->header.frame_id, scan->header.stamp, ros::Duration(0.5));
-//       tf2::convert(base_to_laser_msg, laser_pose);
-//     }
-//     catch(const tf2::TransformException& e)
-//     {
-//       ROS_WARN("Failed to compute laser pose, aborting initialization (%s)",
-// 	       e.what());
-//       return NULL;
-//     }
+    // Get the laser's pose, relative to base.
+    tf2::Stamped<tf2::Transform> laser_pose;
+    try
+    {
+      auto base_to_laser_msg =
+        tf_buffer_->lookupTransform(base_frame_, scan->header.frame_id, scan->header.stamp, ros::Duration(0.5));
+      tf2::convert(base_to_laser_msg, laser_pose);
+    }
+    catch(const tf2::TransformException& e)
+    {
+      ROS_WARN("Failed to compute laser pose, aborting initialization (%s)",
+	       e.what());
+      return NULL;
+    }
 
-//     double yaw = tf2::getYaw(laser_pose.getRotation());
+    double yaw = tf2::getYaw(laser_pose.getRotation());
 
-//     ROS_INFO("laser %s's pose wrt base: %.3f %.3f %.3f",
-// 	     scan->header.frame_id.c_str(),
-// 	     laser_pose.getOrigin().x(),
-// 	     laser_pose.getOrigin().y(),
-// 	     yaw);
-//     // To account for lasers that are mounted upside-down,
-//     // we create a point 1m above the laser and transform it into the laser frame
-//     // if the point's z-value is <=0, it is upside-down
-//     tf2::Vector3 base_link_point_above_laser = laser_pose.getOrigin() + tf2::Vector3(0, 0, 1);
-//     tf2::Vector3 laser_frame_point_above_laser = laser_pose.inverse() * base_link_point_above_laser;
-//     ROS_DEBUG("Z-Axis in sensor frame: %.3f", laser_frame_point_above_laser.z());
+    ROS_INFO("laser %s's pose wrt base: %.3f %.3f %.3f",
+	     scan->header.frame_id.c_str(),
+	     laser_pose.getOrigin().x(),
+	     laser_pose.getOrigin().y(),
+	     yaw);
+    // To account for lasers that are mounted upside-down,
+    // we create a point 1m above the laser and transform it into the laser frame
+    // if the point's z-value is <=0, it is upside-down
+    tf2::Vector3 base_link_point_above_laser = laser_pose.getOrigin() + tf2::Vector3(0, 0, 1);
+    tf2::Vector3 laser_frame_point_above_laser = laser_pose.inverse() * base_link_point_above_laser;
+    ROS_DEBUG("Z-Axis in sensor frame: %.3f", laser_frame_point_above_laser.z());
 
-//     bool inverse = lasers_inverted_[scan->header.frame_id] = laser_frame_point_above_laser.z() <= 0;
-//     if (inverse)
-//       ROS_INFO("laser is mounted upside-down");
+    bool inverse = lasers_inverted_[scan->header.frame_id] = laser_frame_point_above_laser.z() <= 0;
+    if (inverse)
+      ROS_INFO("laser is mounted upside-down");
 
 
-//     // Create a laser range finder device and copy in data from the first
-//     // scan
-//     std::string name = scan->header.frame_id;
-//     karto::LaserRangeFinder* laser =
-//       karto::LaserRangeFinder::CreateLaserRangeFinder(karto::LaserRangeFinder_Custom, karto::Name(name));
-//     laser->SetOffsetPose(karto::Pose2(laser_pose.getOrigin().x(),
-// 				      laser_pose.getOrigin().y(),
-// 				      yaw));
-//     laser->SetMinimumRange(scan->range_min);
-//     laser->SetMaximumRange(scan->range_max);
+    // Create a laser range finder device and copy in data from the first
+    // scan
+    std::string name = scan->header.frame_id;
+    karto::LaserRangeFinder* laser =
+      karto::LaserRangeFinder::CreateLaserRangeFinder(karto::LaserRangeFinder_Custom, karto::Name(name));
+    laser->SetOffsetPose(karto::Pose2(laser_pose.getOrigin().x(),
+				      laser_pose.getOrigin().y(),
+				      yaw));
+    laser->SetMinimumRange(scan->range_min);
+    laser->SetMaximumRange(scan->range_max);
 
-//     // Karto uses some directionality checks to determine laserscan validity.
-//     // https://github.com/ros-perception/open_karto/blob/melodic-devel/src/Mapper.cpp#L763-L767
-//     // This does not play well with lidars that spin clockwise instead of counter-clockwise.
-//     // If this is a clockwise lidar, reverse the spin direction by:
-//     // * Swapping the min and max angles
-//     // * Inverting the angle increment
-//     // * Marking the lidar as inverted, which reverses the order of the range readings
-//     if (scan->angle_increment > 0)
-//     {
-//       laser->SetMinimumAngle(scan->angle_min);
-//       laser->SetMaximumAngle(scan->angle_max);
-//       laser->SetAngularResolution(scan->angle_increment);
-//     }
-//     else
-//     {
-//       laser->SetMinimumAngle(scan->angle_max);
-//       laser->SetMaximumAngle(scan->angle_min);
-//       laser->SetAngularResolution(-scan->angle_increment);
-//       lasers_inverted_[scan->header.frame_id] = !inverse;
-//     }
-//     // TODO: expose this, and many other parameters
-//     //laser_->SetRangeThreshold(12.0);
+    // Karto uses some directionality checks to determine laserscan validity.
+    // https://github.com/ros-perception/open_karto/blob/melodic-devel/src/Mapper.cpp#L763-L767
+    // This does not play well with lidars that spin clockwise instead of counter-clockwise.
+    // If this is a clockwise lidar, reverse the spin direction by:
+    // * Swapping the min and max angles
+    // * Inverting the angle increment
+    // * Marking the lidar as inverted, which reverses the order of the range readings
+    if (scan->angle_increment > 0)
+    {
+      laser->SetMinimumAngle(scan->angle_min);
+      laser->SetMaximumAngle(scan->angle_max);
+      laser->SetAngularResolution(scan->angle_increment);
+    }
+    else
+    {
+      laser->SetMinimumAngle(scan->angle_max);
+      laser->SetMaximumAngle(scan->angle_min);
+      laser->SetAngularResolution(-scan->angle_increment);
+      lasers_inverted_[scan->header.frame_id] = !inverse;
+    }
+    // TODO: expose this, and many other parameters
+    //laser_->SetRangeThreshold(12.0);
 
-//     // Store this laser device for later
-//     lasers_[scan->header.frame_id] = laser;
+    // Store this laser device for later
+    lasers_[scan->header.frame_id] = laser;
 
-//     // Add it to the dataset, which seems to be necessary
-//     dataset_->Add(laser);
-//   }
+    // Add it to the dataset, which seems to be necessary
+    dataset_->Add(laser);
+  }
 
-//   return lasers_[scan->header.frame_id];
-// }
+  return lasers_[scan->header.frame_id];
+}
 
 // bool
 // SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
@@ -1158,7 +1158,7 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
 
   // Check whether we know about this laser yet
   ROS_INFO("Before call to getLaser()");
-  // karto::LaserRangeFinder* laser = getLaser(scan);
+  karto::LaserRangeFinder* laser = getLaser(scan);
   ROS_INFO("After call to getLaser()");
   // if(!laser)
   // {
