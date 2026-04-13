@@ -21,8 +21,8 @@ find_package(catkin REQUIRED
     sparse_bundle_adjustment
     std_msgs
     std_srvs
-    tf
     tf2
+    tf2_geometry_msgs
     tf2_ros
     visualization_msgs
 )

@@ -27,10 +27,19 @@
 #include "ros/ros.h"
 #include "ros/console.h"
 #include "message_filters/subscriber.h"
-#include "tf/transform_broadcaster.h"
-#include "tf/transform_listener.h"
-#include "tf/message_filter.h"
-#include "tf/transform_datatypes.h"
+// #include "tf/transform_broadcaster.h"
+// #include "tf/transform_listener.h"
+// #include "tf/message_filter.h"
+// #include "tf/transform_datatypes.h"
+#include "tf2/convert.h"
+#include "tf2/utils.h"
+#include "tf2/LinearMath/Quaternion.h"
+#include "tf2/LinearMath/Transform.h"
+#include "tf2/LinearMath/Vector3.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/message_filter.h"
+#include "tf2_ros/transform_listener.h"
 #include "tf2_ros/static_transform_broadcaster.h"
 #include "visualization_msgs/Marker.h"
 #include "visualization_msgs/MarkerArray.h"
@@ -232,11 +241,19 @@ class SlamKarto
 
     // ROS handles
     ros::NodeHandle node_;
-    tf::TransformListener tf_;
+
+    // tf::TransformListener tf_;
+    std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+
     ros::Time last_transform_time_;  //!< The timestamp of the last published map->odom transform
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
-    message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
-    tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
+
+    // message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
+    // tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
+    std::unique_ptr<message_filters::Subscriber<sensor_msgs::LaserScan> > scan_filter_sub_;
+    std::unique_ptr<tf2_ros::MessageFilter<sensor_msgs::LaserScan> > scan_filter_;
+
     ros::Publisher sst_;
     // std::unique_ptr<robot_mapping_tools::GraphPublisher> graph_publisher_;  //!< Publishes the SLAM Graph to Magellan
     // ros::Publisher slam_graph_visualization_publisher_;  //!< Visualization of the Karto SLAM graph
@@ -283,7 +300,7 @@ class SlamKarto
     boost::thread* transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
     boost::thread* map_thread_;  //!< Separate thread for building the map image/occupancy grid.
     boost::thread* optimization_thread_;  //!< Separate thread running the Karto mapper optimizations.
-    tf::Transform map_to_odom_;
+    tf2::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
     bool is_paused_;  //!< Flag indicating the system is (supposed to be) paused
@@ -335,7 +352,7 @@ double forceEvenOrOdd(const double dimension, const double resolution, const boo
 }
 
 SlamKarto::SlamKarto() :
-        tf_(ros::Duration(60.0)),
+        // tf_(ros::Duration(60.0)),
         map_requested_transform_dirty_(false),
         // pause_on_loop_closure_(false),
         // loop_closure_pauser_(NULL),
@@ -398,15 +415,29 @@ SlamKarto::SlamKarto() :
   }
 
   // Set up advertisements and subscriptions
+  tf_buffer_ = std::make_unique<tf2_ros::Buffer>(ros::Duration(60.0));
+  tf_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf_buffer_, node_);
+
   sst_ = node_.advertise<nav_msgs::OccupancyGrid>("map", 1, true);
   sstm_ = node_.advertise<nav_msgs::MapMetaData>("map_metadata", 1, true);
   map_path_publisher_ = node_.advertise<nav_msgs::Path>("map_path", 1, true);
   ss_ = node_.advertiseService("dynamic_map", &SlamKarto::mapCallback, this);
   map_transform_service_ = node_.advertiseService("set_map_transform", &SlamKarto::setMapTransformCallback, this);
   ROS_INFO("Subscribing to scan topic...");
-  scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
-  scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
+
+  // scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
+  // scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
+  // scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
+
+  scan_filter_sub_ = std::make_unique<message_filters::Subscriber<sensor_msgs::LaserScan>>(node_, "scan", 5);
+  scan_filter_ = std::make_unique<tf2_ros::MessageFilter<sensor_msgs::LaserScan>>(
+    *scan_filter_sub_,
+    *tf_buffer_,
+    odom_frame_,
+    5,
+    node_);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
+
   ROS_INFO("Subscribed to scan topic.");
   // slam_graph_visualization_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("slam_graph", 1);
   // scan_queue_visualization_publisher_ = node_.advertise<visualization_msgs::Marker>("scan_queue", 1);
@@ -653,10 +684,14 @@ SlamKarto::~SlamKarto()
     optimization_thread_->join();
     delete optimization_thread_;
   }
-  if (scan_filter_)
-    delete scan_filter_;
-  if (scan_filter_sub_)
-    delete scan_filter_sub_;
+
+  // if (scan_filter_)
+  //   delete scan_filter_;
+  // if (scan_filter_sub_)
+  //   delete scan_filter_sub_;
+  scan_filter_.reset();
+  scan_filter_sub_.reset();
+
   if (solver_)
     delete solver_;
   if (mapper_)
@@ -738,14 +773,14 @@ SlamKarto::updateMapToOdomTransform(karto::LocalizedRangeScan* range_scan)
 {
   // Look up the odom->base transform
   karto::Pose2 odom_to_base_pose = range_scan->GetOdometricPose();
-  tf::Transform odom_to_base_transform(
-    tf::createQuaternionFromRPY(0, 0, odom_to_base_pose.GetHeading()),
-    tf::Vector3(odom_to_base_pose.GetX(), odom_to_base_pose.GetY(), 0.0));
+  tf2::Transform odom_to_base_transform(
+    tf2::Quaternion(tf2::Vector3(0, 0, 1), odom_to_base_pose.GetHeading()),
+    tf2::Vector3(odom_to_base_pose.GetX(), odom_to_base_pose.GetY(), 0.0));
   // Look up the map->base transform
   karto::Pose2 map_to_base_pose = range_scan->GetCorrectedPose();
-  tf::Transform map_to_base_transform(
-    tf::createQuaternionFromRPY(0, 0, map_to_base_pose.GetHeading()),
-    tf::Vector3(map_to_base_pose.GetX(), map_to_base_pose.GetY(), 0.0));
+  tf2::Transform map_to_base_transform(
+    tf2::Quaternion(tf2::Vector3(0, 0, 1), map_to_base_pose.GetHeading()),
+    tf2::Vector3(map_to_base_pose.GetX(), map_to_base_pose.GetY(), 0.0));
   // Compute the map->odom transform as map->base * base->odom
   {
     boost::mutex::scoped_lock lock(map_to_odom_mutex_);
@@ -778,7 +813,7 @@ SlamKarto::publishTransform()
     map_to_odom.header.stamp = transform_time;
     map_to_odom.header.frame_id = map_frame_;
     map_to_odom.child_frame_id = odom_frame_;
-    tf::transformTFToMsg(map_to_odom_,map_to_odom.transform);
+    tf2::convert(map_to_odom_, map_to_odom.transform);
     static_broadcaster_.sendTransform(map_to_odom);
     last_transform_time_ = transform_time;
   }
@@ -794,23 +829,21 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     // New laser; need to create a Karto device for it.
 
     // Get the laser's pose, relative to base.
-    tf::Stamped<tf::Pose> ident;
-    tf::Stamped<tf::Transform> laser_pose;
-    ident.setIdentity();
-    ident.frame_id_ = scan->header.frame_id;
-    ident.stamp_ = scan->header.stamp;
+    tf2::Stamped<tf2::Transform> laser_pose;
     try
     {
-      tf_.transformPose(base_frame_, ident, laser_pose);
+      auto base_to_laser_msg =
+        tf_buffer_->lookupTransform(base_frame_, scan->header.frame_id, scan->header.stamp, ros::Duration(0.5));
+      tf2::convert(base_to_laser_msg, laser_pose);
     }
-    catch(const tf::TransformException& e)
+    catch(const tf2::TransformException& e)
     {
       ROS_WARN("Failed to compute laser pose, aborting initialization (%s)",
 	       e.what());
       return NULL;
     }
 
-    double yaw = tf::getYaw(laser_pose.getRotation());
+    double yaw = tf2::getYaw(laser_pose.getRotation());
 
     ROS_INFO("laser %s's pose wrt base: %.3f %.3f %.3f",
 	     scan->header.frame_id.c_str(),
@@ -820,23 +853,11 @@ SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
     // To account for lasers that are mounted upside-down,
     // we create a point 1m above the laser and transform it into the laser frame
     // if the point's z-value is <=0, it is upside-down
+    tf2::Vector3 base_link_point_above_laser = laser_pose.getOrigin() + tf2::Vector3(0, 0, 1);
+    tf2::Vector3 laser_frame_point_above_laser = laser_pose.inverse() * base_link_point_above_laser;
+    ROS_DEBUG("Z-Axis in sensor frame: %.3f", laser_frame_point_above_laser.z());
 
-    tf::Vector3 v;
-    v.setValue(0, 0, 1 + laser_pose.getOrigin().z());
-    tf::Stamped<tf::Vector3> up(v, scan->header.stamp, base_frame_);
-
-    try
-    {
-      tf_.transformPoint(scan->header.frame_id, up, up);
-      ROS_DEBUG("Z-Axis in sensor frame: %.3f", up.z());
-    }
-    catch (const tf::TransformException& e)
-    {
-      ROS_WARN("Unable to determine orientation of laser: %s", e.what());
-      return NULL;
-    }
-
-    bool inverse = lasers_inverted_[scan->header.frame_id] = up.z() <= 0;
+    bool inverse = lasers_inverted_[scan->header.frame_id] = laser_frame_point_above_laser.z() <= 0;
     if (inverse)
       ROS_INFO("laser is mounted upside-down");
 
@@ -889,19 +910,18 @@ bool
 SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
 {
   // Get the robot's pose
-  tf::Stamped<tf::Pose> ident (tf::Transform(tf::createQuaternionFromRPY(0,0,0),
-                                           tf::Vector3(0,0,0)), t, base_frame_);
-  tf::Stamped<tf::Transform> odom_pose;
+  tf2::Stamped<tf2::Transform> odom_pose;
   try
   {
-    tf_.transformPose(odom_frame_, ident, odom_pose);
+    auto odom_to_base_msg = tf_buffer_->lookupTransform(odom_frame_, base_frame_, t, ros::Duration(0.5));
+    tf2::fromMsg(odom_to_base_msg, odom_pose);
   }
-  catch(const tf::TransformException& e)
+  catch(const tf2::TransformException& e)
   {
     ROS_WARN("Failed to compute odom pose, skipping scan (%s)", e.what());
     return false;
   }
-  double yaw = tf::getYaw(odom_pose.getRotation());
+  double yaw = tf2::getYaw(odom_pose.getRotation());
 
   karto_pose =
           karto::Pose2(odom_pose.getOrigin().x(),
@@ -1159,7 +1179,7 @@ SlamKarto::createPath(const karto::LocalizedRangeScanVector& scans, const std::s
     pose_3d.pose.position.x = pose_2d.GetX();
     pose_3d.pose.position.y = pose_2d.GetY();
     pose_3d.pose.position.z = 0.0;
-    pose_3d.pose.orientation = tf::createQuaternionMsgFromYaw(pose_2d.GetHeading());
+    pose_3d.pose.orientation = tf2::toMsg(tf2::Quaternion(tf2::Vector3(0, 0, 1), pose_2d.GetHeading()));
     path_msg.poses.push_back(pose_3d);
   }
   return path_msg;
@@ -1237,7 +1257,7 @@ SlamKarto::updateMap()
     transformMap(karto::Pose2(
       map_requested_transform.transform.translation.x,
       map_requested_transform.transform.translation.y,
-      tf::getYaw(map_requested_transform.transform.rotation)));
+      tf2::getYaw(map_requested_transform.transform.rotation)));
   }
 
   // Copy the laserscans locally to minimize the time when karto must be locked
