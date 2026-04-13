@@ -403,9 +403,11 @@ SlamKarto::SlamKarto() :
   map_path_publisher_ = node_.advertise<nav_msgs::Path>("map_path", 1, true);
   ss_ = node_.advertiseService("dynamic_map", &SlamKarto::mapCallback, this);
   map_transform_service_ = node_.advertiseService("set_map_transform", &SlamKarto::setMapTransformCallback, this);
+  ROS_INFO("Subscribing to scan topic...");
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
+  ROS_INFO("Subscribed to scan topic.");
   // slam_graph_visualization_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("slam_graph", 1);
   // scan_queue_visualization_publisher_ = node_.advertise<visualization_msgs::Marker>("scan_queue", 1);
   pause_publisher_ = node_.advertise<std_msgs::Bool>("pause_topic", 1, true);
