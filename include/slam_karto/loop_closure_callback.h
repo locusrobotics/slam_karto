@@ -7,7 +7,7 @@
 #ifndef SLAM_KARTO_LOOP_CLOSURE_CALLBACK_H
 #define SLAM_KARTO_LOOP_CLOSURE_CALLBACK_H
 
-#include <open_karto/Mapper.h>
+// #include <open_karto/Mapper.h>
 #include <ros/ros.h>
 #include <string>
 #include <vector>
@@ -19,7 +19,7 @@ namespace slam_karto
 /**
  * Class that listens for the start and end of loop closures and calls the provided functions.
  */
-class LoopClosureCallback : public karto::MapperLoopClosureListener
+class LoopClosureCallback // : public karto::MapperLoopClosureListener
 {
 public:
   typedef boost::function<void(const std::string&)> Callback;

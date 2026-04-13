@@ -58,7 +58,7 @@ add_definitions(${EIGEN_DEFINITIONS})
 add_executable(slam_karto
   src/loop_closure_callback.cpp
   src/slam_karto.cpp
-  src/spa_solver.cpp
+  # src/spa_solver.cpp
 )
 add_dependencies(slam_karto
   ${${PROJECT_NAME}_EXPORTED_TARGETS}

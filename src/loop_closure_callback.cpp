@@ -17,7 +17,7 @@ namespace slam_karto
 {
 
 LoopClosureCallback::LoopClosureCallback(double min_loop_closure_time) :
-    karto::MapperLoopClosureListener(),
+    // karto::MapperLoopClosureListener(),
     min_loop_closure_duration_(min_loop_closure_time),
     loop_closure_start_time_(0, 0),
     loop_closure_duration_(0, 0)
