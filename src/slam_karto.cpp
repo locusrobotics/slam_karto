@@ -785,6 +785,7 @@ SlamKarto::publishTransform()
 karto::LaserRangeFinder*
 SlamKarto::getLaser(const sensor_msgs::LaserScan::ConstPtr& scan)
 {
+  ROS_INFO("Inside call to getLaser()");
   // Check whether we know about this laser yet
   if(lasers_.find(scan->header.frame_id) == lasers_.end())
   {
@@ -1047,8 +1048,9 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     return;
 
   // Check whether we know about this laser yet
-  ROS_INFO("About to call getLaser()");
+  ROS_INFO("Before call to getLaser()");
   karto::LaserRangeFinder* laser = getLaser(scan);
+  ROS_INFO("After call to getLaser()");
   if(!laser)
   {
     ROS_WARN("Failed to create laser device for %s; discarding scan",
