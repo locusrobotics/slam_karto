@@ -310,8 +310,8 @@ class SlamKarto
     int spa_method_;
 
     // Laserscan queue for to-be-processed scans
-    // boost::circular_buffer<karto::LocalizedRangeScan*> scan_queue_;  //!< Fixed-sized buffer for storing range scans
-    //                                                                  //!< that have not been processed by the mapper yet
+    boost::circular_buffer<karto::LocalizedRangeScan*> scan_queue_;  //!< Fixed-sized buffer for storing range scans
+                                                                     //!< that have not been processed by the mapper yet
     boost::condition_variable scan_queue_data_available_;  //!< Variable used to synchronize the producer and consumer
                                                            //!< threads without a busy-wait queue size check
     boost::mutex scan_queue_mutex_;  //!< Mutex lock for queue operations (push, pop, front)
@@ -366,8 +366,8 @@ SlamKarto::SlamKarto() :
         is_paused_(false),
         first_scan_received_(false),
         last_scan_time_(0.0),
-        last_scan_pose_(0, 0, 0)
-        // scan_queue_(1)
+        last_scan_pose_(0, 0, 0),
+        scan_queue_(1)
 {
   map_to_odom_.setIdentity();
   // Retrieve parameters
@@ -404,7 +404,7 @@ SlamKarto::SlamKarto() :
   {
     if (scan_queue_length > 0)
     {
-      // scan_queue_.set_capacity(scan_queue_length);
+      scan_queue_.set_capacity(scan_queue_length);
       // queue_visualization_timer_ = node_.createWallTimer(ros::WallDuration(1.0),
       //   boost::bind(&SlamKarto::publishQueueVisualization, this));
     }
@@ -786,12 +786,12 @@ SlamKarto::~SlamKarto()
   // if (loop_closure_pauser_)
   //   delete loop_closure_pauser_;
   // Delete any pending laserscans
-  // while (!scan_queue_.empty())
-  // {
-  //   karto::LocalizedRangeScan* range_scan = scan_queue_.front();
-  //   scan_queue_.pop_front();
-  //   delete range_scan;
-  // }
+  while (!scan_queue_.empty())
+  {
+    karto::LocalizedRangeScan* range_scan = scan_queue_.front();
+    scan_queue_.pop_front();
+    delete range_scan;
+  }
 }
 
 void
@@ -1191,18 +1191,18 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     first_scan_received_ = true;
     last_scan_time_ = range_scan->GetTime();
     last_scan_pose_ = range_scan->GetOdometricPose();
-    // // Push the laserscan into the processing queue
-    // {
-    //   boost::mutex::scoped_lock lock(scan_queue_mutex_);
-    //   scan_queue_.push_back(range_scan);
-    //   // // Pause navigation if the scan queue gets too full
-    //   // if (pause_on_full_queue_ && !isPaused() && queueFillPercentage() > pause_navigation_percentage_)
-    //   // {
-    //   //   pauseNavigation();
-    //   // }
-    // }
-    // // Notify the optimization thread that data is available
-    // scan_queue_data_available_.notify_one();
+    // Push the laserscan into the processing queue
+    {
+      boost::mutex::scoped_lock lock(scan_queue_mutex_);
+      scan_queue_.push_back(range_scan);
+      // // Pause navigation if the scan queue gets too full
+      // if (pause_on_full_queue_ && !isPaused() && queueFillPercentage() > pause_navigation_percentage_)
+      // {
+      //   pauseNavigation();
+      // }
+    }
+    // Notify the optimization thread that data is available
+    scan_queue_data_available_.notify_one();
   }
   else
   {
