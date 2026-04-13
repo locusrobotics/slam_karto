@@ -1029,6 +1029,8 @@ SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
 void
 SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
 {
+  ROS_INFO("laserCallback()");
+
   auto is_scan_valid = [](const sensor_msgs::LaserScan& scan)
   {
     auto expected_scans = static_cast<int>(std::round((scan.angle_max - scan.angle_min) / scan.angle_increment)) + 1;
