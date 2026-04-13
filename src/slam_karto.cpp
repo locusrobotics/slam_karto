@@ -1047,6 +1047,7 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     return;
 
   // Check whether we know about this laser yet
+  ROS_INFO("About to call getLaser()");
   karto::LaserRangeFinder* laser = getLaser(scan);
   if(!laser)
   {
