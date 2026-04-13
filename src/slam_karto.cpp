@@ -130,15 +130,15 @@ class SlamKarto
     */
     bool isPaused() const { return is_paused_; }
 
-    /**
-    * @brief Send all of the pause navigation signals
-    */
-    void pauseNavigation();
+    // /**
+    // * @brief Send all of the pause navigation signals
+    // */
+    // void pauseNavigation();
 
-    /**
-    * @brief Send all of the resume navigation signals
-    */
-    void resumeNavigation();
+    // /**
+    // * @brief Send all of the resume navigation signals
+    // */
+    // void resumeNavigation();
 
     /**
      * @brief Returns the percentage filled of the scan queue in the range [0.0, 1.0]
@@ -209,12 +209,12 @@ class SlamKarto
      */
     void mapLoop(double map_update_interval);
 
-    /**
-     * @brief Publish an updated visualization of the pose graph
-     *
-     * Note that this function blocks, waiting for access to the mapper's graph.
-     */
-    void publishGraphVisualization(const locus_msgs::GraphStamped& graph);
+    // /**
+    //  * @brief Publish an updated visualization of the pose graph
+    //  *
+    //  * Note that this function blocks, waiting for access to the mapper's graph.
+    //  */
+    // void publishGraphVisualization(const locus_msgs::GraphStamped& graph);
 
     /**
      * @brief Thread function for updating the pose graph
@@ -225,10 +225,10 @@ class SlamKarto
      */
     void optimizationLoop();
 
-    /**
-     * @brief Display the queue fill precentage above the robot
-     */
-    void publishQueueVisualization();
+    // /**
+    //  * @brief Display the queue fill precentage above the robot
+    //  */
+    // void publishQueueVisualization();
 
     // ROS handles
     ros::NodeHandle node_;
@@ -238,17 +238,17 @@ class SlamKarto
     message_filters::Subscriber<sensor_msgs::LaserScan>* scan_filter_sub_;
     tf::MessageFilter<sensor_msgs::LaserScan>* scan_filter_;
     ros::Publisher sst_;
-    std::unique_ptr<robot_mapping_tools::GraphPublisher> graph_publisher_;  //!< Publishes the SLAM Graph to Magellan
-    ros::Publisher slam_graph_visualization_publisher_;  //!< Visualization of the Karto SLAM graph
-    ros::Publisher scan_queue_visualization_publisher_;  //!< Visualization of the percent fill of the laserscan queue
+    // std::unique_ptr<robot_mapping_tools::GraphPublisher> graph_publisher_;  //!< Publishes the SLAM Graph to Magellan
+    // ros::Publisher slam_graph_visualization_publisher_;  //!< Visualization of the Karto SLAM graph
+    // ros::Publisher scan_queue_visualization_publisher_;  //!< Visualization of the percent fill of the laserscan queue
     ros::Publisher map_path_publisher_;  //!< Publish the entire optimized path in the map frame
 
     ros::Publisher sstm_;
     ros::ServiceServer ss_;
     ros::ServiceServer map_transform_service_;  //!< Service server for receiving map->map_local transforms
     ros::Publisher pause_publisher_;  //!< Topic that publishes requests to pause/unpause navigation
-    ros::ServiceClient pause_service_client_;  //!< Service client that requests to pause/unpause navigation
-    ros::WallTimer queue_visualization_timer_;  //!< Timer used to publish the scan queue length visualization
+    // ros::ServiceClient pause_service_client_;  //!< Service client that requests to pause/unpause navigation
+    // ros::WallTimer queue_visualization_timer_;  //!< Timer used to publish the scan queue length visualization
 
     // The map that will be published / send to service callers
     nav_msgs::GetMap::Response map_;
@@ -261,10 +261,10 @@ class SlamKarto
     bool map_requested_transform_dirty_;  //!< Flag indicating a new request was received
     int throttle_scans_;
     double resolution_;
-    bool pause_on_loop_closure_;  //!< Issue pause/resume commands in response to loop closure events
-    bool pause_on_full_queue_;  //!< Issue pause/resume navigation commands in response to the queue size
-    double pause_navigation_percentage_;  //!< Only pause navigation when the queue is more than this full (0.0, 1.0)
-    double resume_navigation_percentage_;  //!< Only resume navigation when the queue is less than this full (0.0, 1.0)
+    // bool pause_on_loop_closure_;  //!< Issue pause/resume commands in response to loop closure events
+    // bool pause_on_full_queue_;  //!< Issue pause/resume navigation commands in response to the queue size
+    // double pause_navigation_percentage_;  //!< Only pause navigation when the queue is more than this full (0.0, 1.0)
+    // double resume_navigation_percentage_;  //!< Only resume navigation when the queue is less than this full (0.0, 1.0)
     boost::mutex map_mutex_;
     boost::mutex map_to_odom_mutex_;
     boost::mutex mapper_mutex_;
@@ -273,7 +273,7 @@ class SlamKarto
     karto::Mapper* mapper_;
     karto::Dataset* dataset_;
     SpaSolver* solver_;
-    slam_karto::LoopClosureCallback* loop_closure_pauser_;  //!< Listen to loop closure events from karto and pause nav
+    // slam_karto::LoopClosureCallback* loop_closure_pauser_;  //!< Listen to loop closure events from karto and pause nav
     std::map<std::string, karto::LaserRangeFinder*> lasers_;
     std::map<std::string, bool> lasers_inverted_;
     // Internal state
@@ -337,8 +337,8 @@ double forceEvenOrOdd(const double dimension, const double resolution, const boo
 SlamKarto::SlamKarto() :
         tf_(ros::Duration(60.0)),
         map_requested_transform_dirty_(false),
-        pause_on_loop_closure_(false),
-        loop_closure_pauser_(NULL),
+        // pause_on_loop_closure_(false),
+        // loop_closure_pauser_(NULL),
         got_map_(false),
         map_dirty_(false),
         laser_count_(0),
@@ -375,21 +375,21 @@ SlamKarto::SlamKarto() :
   }
   double transform_publish_period;
   private_nh_.param("transform_publish_period", transform_publish_period, 0.05);
-  private_nh_.param("pause_on_loop_closure", pause_on_loop_closure_, false);
-  private_nh_.param("pause_on_full_queue", pause_on_full_queue_, false);
-  private_nh_.param("pause_navigation_percentage", pause_navigation_percentage_, 0.90);
-  private_nh_.param("resume_navigation_percentage", resume_navigation_percentage_, 0.10);
-  pause_navigation_percentage_ = boost::algorithm::clamp(pause_navigation_percentage_, 0.0, 1.0);
-  resume_navigation_percentage_ = boost::algorithm::clamp(resume_navigation_percentage_,
-    0.0, pause_navigation_percentage_);
+  // private_nh_.param("pause_on_loop_closure", pause_on_loop_closure_, false);
+  // private_nh_.param("pause_on_full_queue", pause_on_full_queue_, false);
+  // private_nh_.param("pause_navigation_percentage", pause_navigation_percentage_, 0.90);
+  // private_nh_.param("resume_navigation_percentage", resume_navigation_percentage_, 0.10);
+  // pause_navigation_percentage_ = boost::algorithm::clamp(pause_navigation_percentage_, 0.0, 1.0);
+  // resume_navigation_percentage_ = boost::algorithm::clamp(resume_navigation_percentage_,
+  //   0.0, pause_navigation_percentage_);
   int scan_queue_length;
   if (private_nh_.getParam("scan_queue_length", scan_queue_length))
   {
     if (scan_queue_length > 0)
     {
       scan_queue_.set_capacity(scan_queue_length);
-      queue_visualization_timer_ = node_.createWallTimer(ros::WallDuration(1.0),
-        boost::bind(&SlamKarto::publishQueueVisualization, this));
+      // queue_visualization_timer_ = node_.createWallTimer(ros::WallDuration(1.0),
+      //   boost::bind(&SlamKarto::publishQueueVisualization, this));
     }
     else
     {
@@ -406,24 +406,24 @@ SlamKarto::SlamKarto() :
   scan_filter_sub_ = new message_filters::Subscriber<sensor_msgs::LaserScan>(node_, "scan", 5);
   scan_filter_ = new tf::MessageFilter<sensor_msgs::LaserScan>(*scan_filter_sub_, tf_, odom_frame_, 5);
   scan_filter_->registerCallback(boost::bind(&SlamKarto::laserCallback, this, _1));
-  slam_graph_visualization_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("slam_graph", 1);
-  scan_queue_visualization_publisher_ = node_.advertise<visualization_msgs::Marker>("scan_queue", 1);
+  // slam_graph_visualization_publisher_ = node_.advertise<visualization_msgs::MarkerArray>("slam_graph", 1);
+  // scan_queue_visualization_publisher_ = node_.advertise<visualization_msgs::Marker>("scan_queue", 1);
   pause_publisher_ = node_.advertise<std_msgs::Bool>("pause_topic", 1, true);
-  pause_service_client_ = node_.serviceClient<std_srvs::SetBool>("pause_service", false);
-  graph_publisher_ = std::make_unique<robot_mapping_tools::GraphPublisher>(nh_, private_nh_);
+  // pause_service_client_ = node_.serviceClient<std_srvs::SetBool>("pause_service", false);
+  // graph_publisher_ = std::make_unique<robot_mapping_tools::GraphPublisher>(nh_, private_nh_);
 
   // Initialize Karto structures
   mapper_ = new karto::Mapper();
   dataset_ = new karto::Dataset();
-  if (pause_on_loop_closure_)
-  {
-    double min_loop_closure_duration;
-    private_nh_.param("min_loop_closure_duration", min_loop_closure_duration, 0.0);
-    loop_closure_pauser_ = new slam_karto::LoopClosureCallback(min_loop_closure_duration);
-    loop_closure_pauser_->RegisterBeginLoopClosureCallback(boost::bind(&SlamKarto::pauseNavigation, this));
-    loop_closure_pauser_->RegisterEndLoopClosureCallback(boost::bind(&SlamKarto::resumeNavigation, this));
-    mapper_->AddListener(loop_closure_pauser_);
-  }
+  // if (pause_on_loop_closure_)
+  // {
+  //   double min_loop_closure_duration;
+  //   private_nh_.param("min_loop_closure_duration", min_loop_closure_duration, 0.0);
+  //   loop_closure_pauser_ = new slam_karto::LoopClosureCallback(min_loop_closure_duration);
+  //   loop_closure_pauser_->RegisterBeginLoopClosureCallback(boost::bind(&SlamKarto::pauseNavigation, this));
+  //   loop_closure_pauser_->RegisterEndLoopClosureCallback(boost::bind(&SlamKarto::resumeNavigation, this));
+  //   mapper_->AddListener(loop_closure_pauser_);
+  // }
 
   // Setting General Parameters from the Parameter Server
   bool use_scan_matching;
@@ -662,8 +662,8 @@ SlamKarto::~SlamKarto()
   if (dataset_)
     delete dataset_;
   lasers_.clear();
-  if (loop_closure_pauser_)
-    delete loop_closure_pauser_;
+  // if (loop_closure_pauser_)
+  //   delete loop_closure_pauser_;
   // Delete any pending laserscans
   while (!scan_queue_.empty())
   {
@@ -694,11 +694,11 @@ SlamKarto::optimizationLoop()
         return;
       }
       // The scan_queue_mutex is locked at this point.
-      // Resume navigation when the queue drops below the fill threshold
-      if (pause_on_full_queue_ && isPaused() && queueFillPercentage() < resume_navigation_percentage_)
-      {
-        resumeNavigation();
-      }
+      // // Resume navigation when the queue drops below the fill threshold
+      // if (pause_on_full_queue_ && isPaused() && queueFillPercentage() < resume_navigation_percentage_)
+      // {
+      //   resumeNavigation();
+      // }
       // Get the next laser scan off the queue and unlock so ROS can continue filling the buffer.
       range_scan = scan_queue_.front();
       scan_queue_.pop_front();
@@ -907,123 +907,123 @@ SlamKarto::getOdomPose(karto::Pose2& karto_pose, const ros::Time& t)
   return true;
 }
 
-void
-SlamKarto::publishGraphVisualization(const locus_msgs::GraphStamped& graph)
-{
-  // Only compute the visualization marker if someone is listening
-  if (slam_graph_visualization_publisher_.getNumSubscribers() > 0 && !graph.graph.nodes.empty())
-  {
-    visualization_msgs::Marker nodes;
-    nodes.header.frame_id = map_frame_;
-    nodes.header.stamp = graph.header.stamp;
-    nodes.ns = "karto";
-    nodes.id = 0;
-    nodes.action = visualization_msgs::Marker::ADD;
-    nodes.type = visualization_msgs::Marker::SPHERE_LIST;
-    nodes.pose.position.x = 0.0;
-    nodes.pose.position.y = 0.0;
-    nodes.pose.position.z = 0.0;
-    // Fix rviz warning about quaternions
-    nodes.pose.orientation.w = 1.0;
-    nodes.scale.x = 0.1;
-    nodes.scale.y = 0.1;
-    nodes.scale.z = 0.1;
-    nodes.color.r = 1.0;
-    nodes.color.g = 0.0;
-    nodes.color.b = 0.0;
-    nodes.color.a = 1.0;
-    nodes.lifetime = ros::Duration(0);
-    // Add all of the graph nodes to the visual
-    nodes.points.reserve(graph.graph.nodes.size());
-    for (auto&& node : graph.graph.nodes)
-    {
-      auto point = geometry_msgs::Point();
-      point.x = node.position.x;
-      point.y = node.position.y;
-      nodes.points.push_back(point);
-    }
+// void
+// SlamKarto::publishGraphVisualization(const locus_msgs::GraphStamped& graph)
+// {
+//   // Only compute the visualization marker if someone is listening
+//   if (slam_graph_visualization_publisher_.getNumSubscribers() > 0 && !graph.graph.nodes.empty())
+//   {
+//     visualization_msgs::Marker nodes;
+//     nodes.header.frame_id = map_frame_;
+//     nodes.header.stamp = graph.header.stamp;
+//     nodes.ns = "karto";
+//     nodes.id = 0;
+//     nodes.action = visualization_msgs::Marker::ADD;
+//     nodes.type = visualization_msgs::Marker::SPHERE_LIST;
+//     nodes.pose.position.x = 0.0;
+//     nodes.pose.position.y = 0.0;
+//     nodes.pose.position.z = 0.0;
+//     // Fix rviz warning about quaternions
+//     nodes.pose.orientation.w = 1.0;
+//     nodes.scale.x = 0.1;
+//     nodes.scale.y = 0.1;
+//     nodes.scale.z = 0.1;
+//     nodes.color.r = 1.0;
+//     nodes.color.g = 0.0;
+//     nodes.color.b = 0.0;
+//     nodes.color.a = 1.0;
+//     nodes.lifetime = ros::Duration(0);
+//     // Add all of the graph nodes to the visual
+//     nodes.points.reserve(graph.graph.nodes.size());
+//     for (auto&& node : graph.graph.nodes)
+//     {
+//       auto point = geometry_msgs::Point();
+//       point.x = node.position.x;
+//       point.y = node.position.y;
+//       nodes.points.push_back(point);
+//     }
 
-    visualization_msgs::Marker edges;
-    edges.header.frame_id = map_frame_;
-    edges.header.stamp = graph.header.stamp;
-    edges.ns = "karto";
-    edges.id = 1;
-    edges.action = visualization_msgs::Marker::ADD;
-    edges.type = visualization_msgs::Marker::LINE_LIST;
-    // Fix rviz warning about quaternions
-    edges.pose.orientation.w = 1.0;
-    edges.scale.x = 0.035;
-    edges.scale.y = 0.035;
-    edges.scale.z = 0.035;
-    edges.color.r = 0.0;
-    edges.color.g = 0.0;
-    edges.color.b = 1.0;
-    edges.color.a = 1.0;
-    edges.lifetime = ros::Duration(0);
-    // Add all of the graph edges to the visual
-    edges.points.reserve(2 * graph.graph.edges.size());
-    auto get_node_position = [&graph](const unsigned int node_id)
-    {
-      auto point = geometry_msgs::Point();
-      // The nodes in the graph are guaranteed to be sorted by node ID, making it efficient to look them up.
-      auto it = std::lower_bound(
-        graph.graph.nodes.begin(),
-        graph.graph.nodes.end(),
-        node_id,
-        [](const auto& node, const unsigned int id) { return node.id < id; });
-      if (it != graph.graph.nodes.end() && it->id == node_id)
-      {
-        point.x = it->position.x;
-        point.y = it->position.y;
-      }
-      return point;
-    };
-    for (auto&& edge : graph.graph.edges)
-    {
-      // Add each pair of poses as an edge in the line list
-      edges.points.push_back(get_node_position(edge.node_ids[0]));
-      edges.points.push_back(get_node_position(edge.node_ids[1]));
-    }
+//     visualization_msgs::Marker edges;
+//     edges.header.frame_id = map_frame_;
+//     edges.header.stamp = graph.header.stamp;
+//     edges.ns = "karto";
+//     edges.id = 1;
+//     edges.action = visualization_msgs::Marker::ADD;
+//     edges.type = visualization_msgs::Marker::LINE_LIST;
+//     // Fix rviz warning about quaternions
+//     edges.pose.orientation.w = 1.0;
+//     edges.scale.x = 0.035;
+//     edges.scale.y = 0.035;
+//     edges.scale.z = 0.035;
+//     edges.color.r = 0.0;
+//     edges.color.g = 0.0;
+//     edges.color.b = 1.0;
+//     edges.color.a = 1.0;
+//     edges.lifetime = ros::Duration(0);
+//     // Add all of the graph edges to the visual
+//     edges.points.reserve(2 * graph.graph.edges.size());
+//     auto get_node_position = [&graph](const unsigned int node_id)
+//     {
+//       auto point = geometry_msgs::Point();
+//       // The nodes in the graph are guaranteed to be sorted by node ID, making it efficient to look them up.
+//       auto it = std::lower_bound(
+//         graph.graph.nodes.begin(),
+//         graph.graph.nodes.end(),
+//         node_id,
+//         [](const auto& node, const unsigned int id) { return node.id < id; });
+//       if (it != graph.graph.nodes.end() && it->id == node_id)
+//       {
+//         point.x = it->position.x;
+//         point.y = it->position.y;
+//       }
+//       return point;
+//     };
+//     for (auto&& edge : graph.graph.edges)
+//     {
+//       // Add each pair of poses as an edge in the line list
+//       edges.points.push_back(get_node_position(edge.node_ids[0]));
+//       edges.points.push_back(get_node_position(edge.node_ids[1]));
+//     }
 
-    // Create a single marker array message from the nodes and edges markers
-    visualization_msgs::MarkerArray marray;
-    marray.markers.push_back(nodes);
-    marray.markers.push_back(edges);
+//     // Create a single marker array message from the nodes and edges markers
+//     visualization_msgs::MarkerArray marray;
+//     marray.markers.push_back(nodes);
+//     marray.markers.push_back(edges);
 
-    slam_graph_visualization_publisher_.publish(marray);
-  }
-}
+//     slam_graph_visualization_publisher_.publish(marray);
+//   }
+// }
 
-void
-SlamKarto::publishQueueVisualization()
-{
-  // Publish queue status
-  if (scan_queue_.capacity() > 1 && scan_queue_visualization_publisher_.getNumSubscribers() > 0)
-  {
-    visualization_msgs::Marker queue_size;
-    queue_size.header.frame_id = base_frame_;
-    queue_size.header.stamp = ros::Time::now();
-    queue_size.ns = "karto_scan_queue";
-    queue_size.id = 0;
-    queue_size.action = visualization_msgs::Marker::ADD;
-    queue_size.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
-    queue_size.pose.position.x = 0.0;
-    queue_size.pose.position.y = 0.40;
-    queue_size.pose.position.z = 0.0;
-    queue_size.scale.x = 0.25;
-    queue_size.scale.y = 0.25;
-    queue_size.scale.z = 0.25;
-    queue_size.color.r = 0.0;
-    queue_size.color.g = 0.0;
-    queue_size.color.b = 0.0;
-    queue_size.color.a = 1.0;
-    queue_size.text = "queue: " + boost::lexical_cast<std::string>(static_cast<int>(queueFillPercentage()*100)) + "%";
-    queue_size.lifetime = ros::Duration(0.0);
-    queue_size.frame_locked = true;
+// void
+// SlamKarto::publishQueueVisualization()
+// {
+//   // Publish queue status
+//   if (scan_queue_.capacity() > 1 && scan_queue_visualization_publisher_.getNumSubscribers() > 0)
+//   {
+//     visualization_msgs::Marker queue_size;
+//     queue_size.header.frame_id = base_frame_;
+//     queue_size.header.stamp = ros::Time::now();
+//     queue_size.ns = "karto_scan_queue";
+//     queue_size.id = 0;
+//     queue_size.action = visualization_msgs::Marker::ADD;
+//     queue_size.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+//     queue_size.pose.position.x = 0.0;
+//     queue_size.pose.position.y = 0.40;
+//     queue_size.pose.position.z = 0.0;
+//     queue_size.scale.x = 0.25;
+//     queue_size.scale.y = 0.25;
+//     queue_size.scale.z = 0.25;
+//     queue_size.color.r = 0.0;
+//     queue_size.color.g = 0.0;
+//     queue_size.color.b = 0.0;
+//     queue_size.color.a = 1.0;
+//     queue_size.text = "queue: " + boost::lexical_cast<std::string>(static_cast<int>(queueFillPercentage()*100)) + "%";
+//     queue_size.lifetime = ros::Duration(0.0);
+//     queue_size.frame_locked = true;
 
-    scan_queue_visualization_publisher_.publish(queue_size);
-  }
-}
+//     scan_queue_visualization_publisher_.publish(queue_size);
+//   }
+// }
 
 void
 SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
@@ -1083,11 +1083,11 @@ SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr& scan)
     {
       boost::mutex::scoped_lock lock(scan_queue_mutex_);
       scan_queue_.push_back(range_scan);
-      // Pause navigation if the scan queue gets too full
-      if (pause_on_full_queue_ && !isPaused() && queueFillPercentage() > pause_navigation_percentage_)
-      {
-        pauseNavigation();
-      }
+      // // Pause navigation if the scan queue gets too full
+      // if (pause_on_full_queue_ && !isPaused() && queueFillPercentage() > pause_navigation_percentage_)
+      // {
+      //   pauseNavigation();
+      // }
     }
     // Notify the optimization thread that data is available
     scan_queue_data_available_.notify_one();
@@ -1250,8 +1250,8 @@ SlamKarto::updateMap()
       scans.push_back(scan);
     }
 
-    // Publish the updated graph
-    graph_publisher_->update(current_time, *mapper_->GetGraph());
+    // // Publish the updated graph
+    // graph_publisher_->update(current_time, *mapper_->GetGraph());
   }
 
   // Build a map from the laserscans
@@ -1343,8 +1343,8 @@ SlamKarto::updateMap()
     sst_.publish(map_.map);
     sstm_.publish(map_.map.info);
 
-    // Publish the Rviz visualization message
-    publishGraphVisualization(graph_publisher_->getGraph());
+    // // Publish the Rviz visualization message
+    // publishGraphVisualization(graph_publisher_->getGraph());
   }
 
   // Delete the temporary Karto map object
@@ -1435,57 +1435,57 @@ SlamKarto::mapCallback(nav_msgs::GetMap::Request  &req,
     return false;
 }
 
-void
-SlamKarto::pauseNavigation()
-{
-  // Publish a pause navigation message
-  if (pause_publisher_.getNumSubscribers() > 0)
-  {
-    ROS_DEBUG_STREAM("Publishing pause navigation message...");
-    std_msgs::Bool msg;
-    msg.data = true;
-    pause_publisher_.publish(msg);
-    is_paused_ = true;
-  }
+// void
+// SlamKarto::pauseNavigation()
+// {
+//   // Publish a pause navigation message
+//   if (pause_publisher_.getNumSubscribers() > 0)
+//   {
+//     ROS_DEBUG_STREAM("Publishing pause navigation message...");
+//     std_msgs::Bool msg;
+//     msg.data = true;
+//     pause_publisher_.publish(msg);
+//     is_paused_ = true;
+//   }
 
-  // Call the pause navigation service
-  if (pause_service_client_.exists())
-  {
-    ROS_DEBUG_STREAM("Calling pause navigation service...");
-    std_srvs::SetBool srv;
-    srv.request.data = true;
-    if (pause_service_client_.call(srv) && srv.response.success)
-    {
-      is_paused_ = true;
-    }
-  }
-}
+//   // Call the pause navigation service
+//   if (pause_service_client_.exists())
+//   {
+//     ROS_DEBUG_STREAM("Calling pause navigation service...");
+//     std_srvs::SetBool srv;
+//     srv.request.data = true;
+//     if (pause_service_client_.call(srv) && srv.response.success)
+//     {
+//       is_paused_ = true;
+//     }
+//   }
+// }
 
-void
-SlamKarto::resumeNavigation()
-{
-  // Publish a resume navigation message
-  if (pause_publisher_.getNumSubscribers() > 0)
-  {
-    ROS_DEBUG_STREAM("Publishing resume navigation message...");
-    std_msgs::Bool msg;
-    msg.data = false;
-    pause_publisher_.publish(msg);
-    is_paused_ = false;
-  }
+// void
+// SlamKarto::resumeNavigation()
+// {
+//   // Publish a resume navigation message
+//   if (pause_publisher_.getNumSubscribers() > 0)
+//   {
+//     ROS_DEBUG_STREAM("Publishing resume navigation message...");
+//     std_msgs::Bool msg;
+//     msg.data = false;
+//     pause_publisher_.publish(msg);
+//     is_paused_ = false;
+//   }
 
-  // Call the resume navigation service
-  if (pause_service_client_.exists())
-  {
-    ROS_DEBUG_STREAM("Calling resume navigation service...");
-    std_srvs::SetBool srv;
-    srv.request.data = false;
-    if (pause_service_client_.call(srv) && srv.response.success)
-    {
-      is_paused_ = false;
-    }
-  }
-}
+//   // Call the resume navigation service
+//   if (pause_service_client_.exists())
+//   {
+//     ROS_DEBUG_STREAM("Calling resume navigation service...");
+//     std_srvs::SetBool srv;
+//     srv.request.data = false;
+//     if (pause_service_client_.call(srv) && srv.response.success)
+//     {
+//       is_paused_ = false;
+//     }
+//   }
+// }
 
 int
 main(int argc, char** argv)
