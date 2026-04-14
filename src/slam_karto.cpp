@@ -65,14 +65,17 @@
 
 #include <boost/algorithm/clamp.hpp>
 #include <boost/circular_buffer.hpp>
-#include <boost/thread.hpp>
-#include <boost/thread/condition.hpp>
+// #include <boost/thread.hpp>
+// #include <boost/thread/condition.hpp>
 
 #include <algorithm>
+#include <condition_variable>
 #include <iterator>
 #include <map>
+#include <mutex>
 #include <set>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -282,9 +285,9 @@ class SlamKarto
     // bool pause_on_full_queue_;  //!< Issue pause/resume navigation commands in response to the queue size
     // double pause_navigation_percentage_;  //!< Only pause navigation when the queue is more than this full (0.0, 1.0)
     // double resume_navigation_percentage_;  //!< Only resume navigation when the queue is less than this full (0.0, 1.0)
-    boost::mutex map_mutex_;
-    boost::mutex map_to_odom_mutex_;
-    boost::mutex mapper_mutex_;
+    std::mutex map_mutex_;
+    std::mutex map_to_odom_mutex_;
+    std::mutex mapper_mutex_;
 
     // Karto bookkeeping
     karto::Mapper* mapper_;
@@ -297,9 +300,9 @@ class SlamKarto
     bool got_map_;
     bool map_dirty_;  //!< Flag indicating the map needs to be regenerated
     int laser_count_;
-    boost::thread* transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
-    boost::thread* map_thread_;  //!< Separate thread for building the map image/occupancy grid.
-    boost::thread* optimization_thread_;  //!< Separate thread running the Karto mapper optimizations.
+    std::thread transform_thread_;  //!< Separate thread for publishing the map->odom transformation.
+    std::thread map_thread_;  //!< Separate thread for building the map image/occupancy grid.
+    std::thread optimization_thread_;  //!< Separate thread running the Karto mapper optimizations.
     tf2::Transform map_to_odom_;
     unsigned marker_count_;
     bool inverted_laser_;
@@ -312,9 +315,9 @@ class SlamKarto
     // Laserscan queue for to-be-processed scans
     // boost::circular_buffer<karto::LocalizedRangeScan*> scan_queue_;  //!< Fixed-sized buffer for storing range scans
     //                                                                  //!< that have not been processed by the mapper yet
-    boost::condition_variable scan_queue_data_available_;  //!< Variable used to synchronize the producer and consumer
+    std::condition_variable scan_queue_data_available_;  //!< Variable used to synchronize the producer and consumer
                                                            //!< threads without a busy-wait queue size check
-    boost::mutex scan_queue_mutex_;  //!< Mutex lock for queue operations (push, pop, front)
+    std::mutex scan_queue_mutex_;  //!< Mutex lock for queue operations (push, pop, front)
 };
 
 namespace
@@ -359,9 +362,9 @@ SlamKarto::SlamKarto() :
         got_map_(false),
         map_dirty_(false),
         laser_count_(0),
-        transform_thread_(NULL),
-        map_thread_(NULL),
-        optimization_thread_(NULL),
+        // transform_thread_(NULL),
+        // map_thread_(NULL),
+        // optimization_thread_(NULL),
         marker_count_(0),
         is_paused_(false),
         first_scan_received_(false),
@@ -734,18 +737,17 @@ SlamKarto::SlamKarto() :
   // Create a thread to periodically publish the latest map->odom
   // transform; it needs to go out regularly, uninterrupted by potentially
   // long periods of computation in our main loop.
-  transform_thread_ = new boost::thread(boost::bind(&SlamKarto::publishLoop, this, transform_publish_period));
+  transform_thread_ = std::thread(&SlamKarto::publishLoop, this, transform_publish_period);
 
   // Create a thread to periodically rebuild the map from the laserscans.
   // The map is not used by karto itself, so it may be built in parallel
   // without affecting the actual algorithm.
-  map_thread_ = new boost::thread(boost::bind(&SlamKarto::mapLoop, this, map_update_interval));
+  map_thread_ = std::thread(&SlamKarto::mapLoop, this, map_update_interval);
 
   // Create a thread for running the Karto scan processor. This allows the ROS callback
   // system to continue to run, adding new scans to the scan queue for Karto to process
   // when it has time. This prevents Karto from skipping scans when it gets busy.
-  optimization_thread_ = new boost::thread(
-    boost::bind(&SlamKarto::optimizationLoop, this));
+  optimization_thread_ = std::thread(&SlamKarto::optimizationLoop, this);
 }
 
 SlamKarto::~SlamKarto()
@@ -753,20 +755,20 @@ SlamKarto::~SlamKarto()
   // Notify the queue condition variable so it will wake up from its sleep
   scan_queue_data_available_.notify_all();
   // Shutdown all of the threads
-  if (transform_thread_)
+  if (transform_thread_.joinable())
   {
-    transform_thread_->join();
-    delete transform_thread_;
+    transform_thread_.join();
+    // delete transform_thread_;
   }
-  if (map_thread_)
+  if (map_thread_.joinable())
   {
-    map_thread_->join();
-    delete map_thread_;
+    map_thread_.join();
+    // delete map_thread_;
   }
-  if (optimization_thread_)
+  if (optimization_thread_.joinable())
   {
-    optimization_thread_->join();
-    delete optimization_thread_;
+    optimization_thread_.join();
+    // delete optimization_thread_;
   }
 
   // if (scan_filter_)
@@ -890,7 +892,7 @@ SlamKarto::publishLoop(double transform_publish_period)
 void
 SlamKarto::publishTransform()
 {
-  boost::mutex::scoped_lock lock(map_to_odom_mutex_);
+  std::lock_guard<std::mutex> lock(map_to_odom_mutex_);
   ros::Time transform_time = ros::Time::now();
   if (transform_time != last_transform_time_)
   {
@@ -1215,7 +1217,7 @@ SlamKarto::setMapTransformCallback(
   slam_karto::SetMapTransform::Request& req,
   slam_karto::SetMapTransform::Response& res)
 {
-  boost::mutex::scoped_lock lock(map_mutex_);
+  std::lock_guard<std::mutex> lock(map_mutex_);
   map_requested_transform_ = req;
   map_requested_transform_dirty_= true;
 
@@ -1320,7 +1322,7 @@ SlamKarto::updateMap()
   bool map_requested_transform_dirty;
   slam_karto::SetMapTransform::Request map_requested_transform;
   {
-    boost::mutex::scoped_lock lock(map_mutex_);
+    std::lock_guard<std::mutex> lock(map_mutex_);
     map_dirty = map_dirty_;
     map_requested_transform_dirty = map_requested_transform_dirty_;
     map_requested_transform = map_requested_transform_;
@@ -1537,7 +1539,7 @@ bool
 SlamKarto::mapCallback(nav_msgs::GetMap::Request  &req,
                        nav_msgs::GetMap::Response &res)
 {
-  boost::mutex::scoped_lock lock(map_mutex_);
+  std::lock_guard<std::mutex> lock(map_mutex_);
   if(got_map_ && map_.map.info.width && map_.map.info.height)
   {
     res = map_;
