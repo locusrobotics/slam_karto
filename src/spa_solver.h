@@ -20,16 +20,16 @@
 
 #include <open_karto/Mapper.h>
 
-#ifndef EIGEN_USE_NEW_STDVECTOR
-#define EIGEN_USE_NEW_STDVECTOR
-#endif // EIGEN_USE_NEW_STDVECTOR
+// #ifndef EIGEN_USE_NEW_STDVECTOR
+// #define EIGEN_USE_NEW_STDVECTOR
+// #endif // EIGEN_USE_NEW_STDVECTOR
 
-#define EIGEN_DEFAULT_IO_FORMAT Eigen::IOFormat(10)
-#include <Eigen/Eigen>
+// #define EIGEN_DEFAULT_IO_FORMAT Eigen::IOFormat(10)
+// #include <Eigen/Eigen>
 
 #include <sparse_bundle_adjustment/spa2d.h>
 
-typedef std::vector<karto::Matrix3> CovarianceVector;
+// typedef std::vector<karto::Matrix3> CovarianceVector;
 
 class SpaSolver : public karto::ScanSolver
 {
@@ -49,7 +49,7 @@ public:
   // Get the underlying graph from SBA
   // return the graph of constraints
   /// x,y -> x',y'   4 floats per connection
-  void getGraph(std::vector<float> &g) { m_Spa.getGraph(g); }
+  void getGraph(std::vector<float> &g) { /* m_Spa.getGraph(g); */ }
 
 private:
   karto::ScanSolver::IdPoseVector corrections;

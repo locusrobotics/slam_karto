@@ -61,7 +61,7 @@
 
 #include <slam_karto/SetMapTransform.h>
 #include <slam_karto/loop_closure_callback.h>
-// #include "spa_solver.h"
+#include "spa_solver.h"
 
 #include <boost/algorithm/clamp.hpp>
 #include <boost/circular_buffer.hpp>
@@ -289,7 +289,7 @@ class SlamKarto
     // Karto bookkeeping
     karto::Mapper* mapper_;
     karto::Dataset* dataset_;
-    // SpaSolver* solver_;
+    SpaSolver* solver_;
     // slam_karto::LoopClosureCallback* loop_closure_pauser_;  //!< Listen to loop closure events from karto and pause nav
     // std::map<std::string, karto::LaserRangeFinder*> lasers_;
     std::map<std::string, bool> lasers_inverted_;
@@ -709,7 +709,7 @@ SlamKarto::SlamKarto() :
   }
 
   // Set solver to be used in loop closure
-  // solver_ = new SpaSolver();
+  solver_ = new SpaSolver();
 
   // std::string spa_method_string;
   // spa_method_ = SBA_SPARSE_CHOLESKY;
