@@ -60,6 +60,11 @@ add_executable(slam_karto
   src/slam_karto.cpp
   src/spa_solver.cpp
 )
+# The sparse_bundle_adjustment library is compiled with the
+# -DSBA_CHOLMOD flag set. slam_karto needs the same compile
+# flag set so the header will be compatible with the shared
+# library.
+target_compile_definitions(slam_karto PRIVATE SBA_CHOLMOD)
 add_dependencies(slam_karto
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS}
