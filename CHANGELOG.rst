@@ -77,6 +77,21 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Carlos Mendes, Gary Servin, Stephen Williams, locus-services
 
+Forthcoming
+-----------
+* [RST-15167] Backport missing compile flag into Release 26.0.0 (#18)
+  Added missing compile flag to be in sync with the sparse_bundle_adjustment library (#17)
+* Tailor: Updating Jenkinsfile
+* [RST-15167] Backport mutex lock fixes into Release 26.0.0 (#16)
+  Fixed threading issues by adding some missing mutex locks (#15)
+* Tailor: Updating Jenkinsfile
+* [RST-14976] Backport scan match quality checks into Release 26.0.0 (#13)
+  Add support for running and nearby link quality checks (#12)
+  * Add support for running and nearby link quality checks, allow user to print scan match scores lives
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Contributors: Stephen Williams, locus-services
+
 0.26.0 (2026-03-03)
 -------------------
 * Tailor: Updating Jenkinsfile
