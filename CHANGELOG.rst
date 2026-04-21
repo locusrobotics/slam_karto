@@ -77,8 +77,8 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Carlos Mendes, Gary Servin, Stephen Williams, locus-services
 
-Forthcoming
------------
+0.26.1 (2026-04-21)
+-------------------
 * [RST-15167] Backport missing compile flag into Release 26.0.0 (#18)
   Added missing compile flag to be in sync with the sparse_bundle_adjustment library (#17)
 * Tailor: Updating Jenkinsfile
