@@ -77,6 +77,24 @@ Changelog for package slam_karto
 * Tailor: Updating Jenkinsfile
 * Contributors: Carlos Mendes, Gary Servin, Stephen Williams, locus-services
 
+Forthcoming
+-----------
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* [RST-15167] Added missing compile flag to be in sync with the sparse_bundle_adjustment library (#17)
+* Treat external includes as system dependencies (#14)
+* Tailor: Updating Jenkinsfile
+* [RST-15167] Fixed threading issues by adding some missing mutex locks (#15)
+* Tailor: Updating Jenkinsfile
+* [RST-14976] Add support for running and nearby link quality checks (#12)
+  * Add support for running and nearby link quality checks, allow user to print scan match scores lives
+  * Clean up whitespace
+  * Ignore catkin dependency precommit check. It does not apply.
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Tailor: Updating Jenkinsfile
+* Contributors: Gary Servin, Stephen Williams, locus-services
+
 0.26.0 (2026-03-03)
 -------------------
 * Tailor: Updating Jenkinsfile
